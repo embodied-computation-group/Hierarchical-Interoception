@@ -1,0 +1,236 @@
+---
+title: "Figure6"
+output: html_document
+---
+
+```{r}
+
+hierarchical_slope_fit <- readRDS("~/HI/power_analysis_hierarchical_slope_fit_exp.rds")
+hierarchical_threshold_fit <- readRDS("~/HI/power_analysis_hierarchical_threshold_fit_exp.rds")
+simple_test_slope_fit <- readRDS("~/HI/power_analysis_simple_test_slope_fit_exp.rds")
+simple_test_threshold_fit <- readRDS("~/HI/power_analysis_simple_test_threshold_fit_exp.rds")
+uncertainty_propagation_slope_fit <- readRDS("~/HI/power_analysis_uncertainty_propagation_test_slope_fit_exp.rds")
+uncertainty_propagation_threshold_fit <- readRDS("~/HI/power_analysis_uncertainty_propagation_test_threshold_fit_exp.rds")
+
+hierarchical_data <- read_csv("power_analysis_hierarchical_data.csv") %>% 
+  mutate(test_type='h')
+simple_test_data <- read_csv("power_analysis_simple_test_data.csv") %>% 
+  mutate(test_type='s')
+uncertainty_propagation_data <- read_csv("power_analysis_uncertainty_propagation_test_data.csv") %>% 
+  mutate(test_type='u')
+all_data<-
+  full_join(hierarchical_data,uncertainty_propagation_data) %>% 
+  full_join(simple_test_data)
+
+hierarchical_slope_fit$draws(
+  variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),
+  format = 'df'
+  ) %>% 
+  pivot_longer(cols = everything()) %>% 
+  group_by(name) %>% 
+  summarise(
+    m=round(mean(value),2),
+    lb=round(quantile(value,0.025),2),
+    ub=round(quantile(value,0.975),2)
+    )
+hierarchical_threshold_fit$draws(
+  variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),
+  format = 'df'
+  ) %>% 
+  pivot_longer(cols = everything()) %>% 
+  group_by(name) %>% 
+  summarise(
+    m=round(mean(value),2),
+    lb=round(quantile(value,0.025),2),
+    ub=round(quantile(value,0.975),2)
+    )
+simple_test_slope_fit$draws(
+  variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),
+  format = 'df'
+  ) %>% 
+  pivot_longer(cols = everything()) %>% 
+  group_by(name) %>% 
+  summarise(
+    m=round(mean(value),2),
+    lb=round(quantile(value,0.025),2),
+    ub=round(quantile(value,0.975),2)
+    )
+simple_test_threshold_fit$draws(
+  variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),
+  format = 'df'
+  ) %>% 
+  pivot_longer(cols = everything()) %>% 
+  group_by(name) %>% 
+  summarise(
+    m=round(mean(value),2),
+    lb=round(quantile(value,0.025),2),
+    ub=round(quantile(value,0.975),2)
+    )
+
+```
+
+```{r}
+draws_h<-hierarchical_threshold_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='h')
+draws_s<-simple_test_threshold_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='s')
+draws_u<-uncertainty_propagation_threshold_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='u')
+
+draws<-full_join(draws_h,draws_s) %>% full_join(draws_u)
+
+pfs<-expand.grid(
+  .draw=1:max(draws$.draw),
+  es=seq(0,1,.01),
+  ss=unique(all_data$subjects),
+  nt=unique(all_data$trials)
+  ) %>% 
+  full_join(draws) %>% 
+  mutate(
+    alpha=exp(intercept_alpha)*ss^`expo_alpha[1]`*nt^`expo_alpha[2]`,
+    beta=exp(intercept_beta)*ss^`expo_beta[1]`*nt^`expo_beta[2]`,
+    p=1/(1+exp(-(es-alpha)/beta))
+         ) %>% 
+  group_by(es,ss,nt,test_type) %>% 
+  summarise(
+    lb=quantile(p,0.025),
+    ub=quantile(p,0.975)
+    ) %>% 
+  rename(subjects=ss,effect_size=es,trials=nt)
+
+all_data_threshold<-
+  all_data %>% 
+  filter(parameter=='Threshold') %>% 
+  full_join(pfs)
+
+all_data_threshold %>% 
+  filter(test_type!='u') %>% 
+  ggplot()+
+  geom_hline(aes(yintercept = .9),linetype='dotted',color='grey')+
+  geom_hline(aes(yintercept = .8),linetype='dotted',color='grey')+
+  geom_hline(aes(yintercept = .05),linetype='dotted',color='grey')+
+  geom_ribbon(aes(x=effect_size,y=mean,ymin=lb,ymax=ub,fill=test_type),alpha=.5)+
+  geom_pointrange(aes(x=effect_size,y=mean,ymin=lower,ymax=upper,color=test_type),size=.01,position = position_dodge(width = .05))+
+  facet_wrap(trials~subjects, scales = 'free')+
+  xlab('Standardized effect size (Cohen´s d)')+
+  ylab('Statistical power')+
+  guides(color='none',fill='none')+
+  scale_fill_manual(labels=c('Hierarchical','Simple t-test','Weighted t-test'),values = c('#D55E00','#CC79A7','#0072B2'))+
+  scale_color_manual(labels=c('Hierarchical','Simple t-test','Weighted t-test'),values =c('#D55E00','#CC79A7','#0072B2'))+
+  scale_x_continuous(breaks=c(0,0.2,0.5,0.8))+
+  scale_y_continuous(breaks=c(0,.5,1))+
+  theme_classic()+
+    theme(
+      text=element_text(size = 12),
+      strip.text = element_blank()  # Remove facet labels
+  )+
+  coord_cartesian(ylim=c(0,1))
+ggsave('Figure6A.tiff',units = 'cm',width = 16,height = 10)
+```
+
+```{r}
+draws_h<-hierarchical_threshold_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='h')
+draws_s<-simple_test_threshold_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='s')
+draws_u<-uncertainty_propagation_threshold_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='u')
+
+draws<-full_join(draws_h,draws_s) %>% full_join(draws_u)
+
+pfs<-expand.grid(
+  .draw=1:max(draws$.draw),
+  es=seq(0,1,.01),
+  ss=unique(all_data$subjects),
+  nt=unique(all_data$trials)
+  ) %>% 
+  full_join(draws) %>% 
+  mutate(
+    alpha=exp(intercept_alpha)*ss^`expo_alpha[1]`*nt^`expo_alpha[2]`,
+    beta=exp(intercept_beta)*ss^`expo_beta[1]`*nt^`expo_beta[2]`,
+    p=1/(1+exp(-(es-alpha)/beta))
+         ) %>% 
+  group_by(es,ss,nt,test_type) %>% 
+  summarise(
+    lb=quantile(p,0.025),
+    ub=quantile(p,0.975)
+    ) %>% 
+  rename(subjects=ss,effect_size=es,trials=nt)
+
+all_data_threshold<-
+  all_data %>% 
+  filter(parameter=='Threshold') %>% 
+  full_join(pfs)
+
+all_data_threshold %>% 
+  ggplot()+
+  geom_hline(aes(yintercept = .9),linetype='dotted',color='grey')+
+  geom_hline(aes(yintercept = .8),linetype='dotted',color='grey')+
+  geom_hline(aes(yintercept = .05),linetype='dotted',color='grey')+
+  geom_ribbon(aes(x=effect_size,y=mean,ymin=lb,ymax=ub,fill=test_type),alpha=.5)+
+  geom_pointrange(aes(x=effect_size,y=mean,ymin=lower,ymax=upper,color=test_type),size=.01,position = position_dodge(width = .05))+
+  facet_wrap(trials~subjects, scales = 'free')+
+  xlab('Standardized effect size (Cohen´s d)')+
+  ylab('Statistical power')+
+  guides(fill='none')+
+  scale_fill_manual(labels=c('Hierarchical','Simple t-test','Weighted t-test'),values =c('#D55E00','#CC79A7','#0072B2'))+
+  scale_color_manual(labels=c('Hierarchical','Simple t-test','Weighted t-test'),values = c('#D55E00','#CC79A7','#0072B2'))+
+  scale_x_continuous(breaks=c(0,0.2,0.5,0.8))+
+  scale_y_continuous(breaks=c(0,.5,1))+
+  theme_classic()+
+    theme(
+      text=element_text(size = 12),
+      strip.text = element_blank()  # Remove facet labels
+  )+
+  coord_cartesian(ylim=c(0,1))
+ggsave('Figure6A_alt.tiff',units = 'cm',width = 16,height = 10)
+```
+```{r}
+draws_h<-hierarchical_threshold_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='h')
+draws_s<-simple_test_threshold_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='s')
+
+
+pfs_h<-expand.grid(
+  .draw=1:max(draws_h$.draw),
+  es=seq(.4,1,.2),
+  ss=seq(2,110,2),
+  nt=seq(2,110,2)
+  ) %>% 
+  full_join(draws_h) %>% 
+  mutate(
+    alpha=exp(intercept_alpha)*ss^`expo_alpha[1]`*nt^`expo_alpha[2]`,
+    beta=exp(intercept_beta)*ss^`expo_beta[1]`*nt^`expo_beta[2]`,
+    p=1/(1+exp(-(es-alpha)/beta))
+         ) %>% 
+  group_by(es,ss,nt) %>% 
+  summarize(p=mean(p))
+
+pfs_s<-expand.grid(
+  .draw=1:max(draws_h$.draw),
+  es=seq(.4,1,.2),
+  ss=seq(2,110,2),
+  nt=seq(2,110,2)
+  ) %>% 
+  full_join(draws_s) %>% 
+  mutate(
+    alpha=exp(intercept_alpha)*ss^`expo_alpha[1]`*nt^`expo_alpha[2]`,
+    beta=exp(intercept_beta)*ss^`expo_beta[1]`*nt^`expo_beta[2]`,
+    p=1/(1+exp(-(es-alpha)/beta))
+         ) %>% 
+  group_by(es,ss,nt) %>% 
+  summarize(p=mean(p))
+
+pfs_h %>% 
+  ggplot()+
+  geom_tile(aes(x=nt,y=ss,fill=p))+
+  geom_contour(aes(x=nt,y=ss,z=p),breaks = 0.8,color='#D55E00',linewidth = 1)+
+  geom_contour(data=pfs_s,aes(x=nt,y=ss,z=p),breaks = 0.8,color='#CC79A7',linewidth = 1)+
+  scale_fill_gradient(low = rgb(.9*.7,.4*.7,0), high = "white",limits=c(0,1),breaks=c(seq(0,1,.2)))+
+  guides(color='none',fill='none')+
+  labs(fill='Power')+
+  xlab('N trials')+
+  ylab('N participants')+
+  facet_wrap(es~.,ncol=5,scales='free')+
+  theme_minimal()+
+  theme(
+      text=element_text(size = 12),
+      strip.text = element_blank()  # Remove facet labels
+  )+
+  coord_cartesian(xlim=c(5,100),ylim=c(5,100))
+
+ggsave('Figure6B.tiff',units = 'cm',width = 16,height = 4)
+```

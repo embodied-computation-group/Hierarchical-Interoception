@@ -1,0 +1,237 @@
+---
+title: "Figure3"
+output: html_document
+---
+
+```{r}
+source(here::here("scripts","utility.R"))
+library(loo)
+library(tidyverse)
+load(here::here("results","model_and_parameter_recovery.RData"))
+
+model_recovery<-results
+
+mod_comp<-tibble(
+  winning_model=rep(NaN,400),
+  generative_model=rep(NaN,400),
+  any_pareto_k=rep(NaN,400),
+  significant=rep(NaN,400),
+  meanrhat=rep(NaN,400),
+  sum_div=rep(NaN,400)
+  )
+for(idx in 1:400){
+  mr<-model_recovery[idx][[1]][[2]]
+  if(mr$dataset[1]=='gaussian'|mr$dataset[1]=='gumbel'){
+    if(mr$dataset[1]=='gaussian'){
+      mod_comp$generative_model[idx]<-1
+    }else if(mr$dataset[1]=='gumbel'){
+      mod_comp$generative_model[idx]<-2
+    }
+    
+    mr<-
+      mr%>%
+      filter(mr$models=='gaussian'|mr$models=='gumbel') 
+    
+    if(mr$models[mr$elpd_diff==max(mr$elpd_diff)]=='gaussian'){
+      mod_comp$winning_model[idx]<-1
+    }else if(mr$models[mr$elpd_diff==max(mr$elpd_diff)]=='gumbel'){
+      mod_comp$winning_model[idx]<-2
+    }
+    if(max(mr$elpd_diff)==0){
+      mod_comp$significant[idx]<-(min(mr$elpd_diff)/2*mr$se_diff[mr$elpd_diff==min(mr$elpd_diff)])<(-2)
+    }else{
+      mod_comp$significant[idx]<-(min(mr$elpd_diff)+2*mr$se_diff[mr$elpd_diff==min(mr$elpd_diff)])<(max(mr$elpd_diff)-2*mr$se_diff[mr$elpd_diff==max(mr$elpd_diff)])
+    }
+  }
+  
+  mod_comp$any_pareto_k[idx]<-sum(mr$pareto_k_over_0.7)>1
+  mod_comp$sum_div[idx]<-sum(mr$mean_div)>0
+  mod_comp$meanrhat[idx]<-mean(mr$meanrhat)>1.01
+}
+
+mod_comp<-mod_comp %>% filter(sum_div==0,!is.na(winning_model))
+test<-tibble(n=rep(NaN,4),n_sig=rep(NaN,4))
+for(gen in 1:2){
+  for(win in 1:2){
+    test$generative_model[win+(gen-1)*2]=gen
+    test$winning_model[win+(gen-1)*2]=win
+    test$n[win+(gen-1)*2]=sum(mod_comp$winning_model[mod_comp$generative_model==gen]==win)
+    test$n_sig[win+(gen-1)*2]=sum(mod_comp$winning_model[mod_comp$generative_model==gen & mod_comp$significant==1]==win)
+    test$n_tot[win+(gen-1)*2]=sum(mod_comp$generative_model==gen)
+  }
+}
+
+test<-test %>%
+  mutate(
+    prop=n/n_tot,
+    prop_sig=n_sig/n_tot,
+    prop_lb=qbeta(.05,1+n,1+n_tot-n),
+    prop_ub=qbeta(.95,1+n,1+n_tot-n)
+    )
+test %>% 
+  ggplot()+
+  geom_tile(aes(x=as.factor(generative_model),y=as.factor(winning_model),fill=n/n_tot))+
+  geom_text(aes(x=as.factor(generative_model),y=as.factor(winning_model),label=paste0(round(prop,2),'\n[',round(prop_lb,2),' - ',round(prop_ub,2),']')),color=rgb(.4,.4,.4))+
+  xlab('Generative model')+
+  ylab('Winning model')+
+  theme_minimal()+
+  theme(legend.position = 'none',
+         axis.text.y = element_text(angle = 90,hjust=0.5))+
+  scale_x_discrete(breaks=1:2,labels = c('Gaussian','Gumbel'))+
+  scale_y_discrete(breaks=1:2,labels = c('Gaussian','Gumbel'))+
+  scale_fill_gradient(low = "black", high = "white",limits=c(0,1))+
+  ggtitle('Model recovery')
+
+  
+ggsave(here::here("figures",'Figure3A.tiff'),units = 'cm',width = 7,height = 6.5)
+
+```
+
+```{r}
+
+truth_gaussian <- read_csv(here::here("simulated_data","model_parameter_recovery","parameter_recovery_gaussian_dataset_information.csv"))
+truth_gaussian$dataset="gaussian"
+
+truth_gumbell <- read_csv(here::here("simulated_data","model_parameter_recovery","parameter_recovery_gumbel_dataset_information.csv"))
+truth_gumbell$dataset="gumbel"
+
+
+truth<-
+  full_join(truth_gaussian,truth_gumbell) %>% 
+  pivot_longer(cols = c(mu_alpha,mu_beta,mu_lambda),names_to = 'variable') %>% 
+  select(variable,value,idx,dataset)
+
+truth$variable[truth$variable=='mu_alpha']='mu_threshold'
+truth$variable[truth$variable=='mu_beta']='mu_slope'
+truth$variable[truth$variable=='mu_lambda']='mu_lapse'
+
+temp<-
+    model_recovery[1][[1]][[1]] %>% 
+    mutate(dataset=as.character(dataset),model=models) %>% 
+    filter(model==dataset)
+combined<-
+  model_recovery[1][[1]][[4]] %>% 
+  mutate(dataset=as.character(dataset)) %>% 
+  filter(str_detect(variable,'mu'),model==dataset) %>% 
+  full_join(temp)
+
+for(idx in 2:400){
+  mr<-
+    model_recovery[idx][[1]][[4]] %>% 
+    mutate(dataset=as.character(dataset)) %>% 
+  filter(str_detect(variable,'mu'),model==dataset)
+  
+  temp<-
+    model_recovery[idx][[1]][[1]] %>% 
+    mutate(dataset=as.character(dataset),model=models) %>% 
+    filter(model==dataset) %>% 
+    full_join(mr)
+  
+
+  
+  if(mr$dataset[1]=='gaussian'|mr$dataset[1]=='gumbel'){
+    combined<-
+      full_join(temp,combined)
+  }
+}
+
+combined<-
+  combined%>% 
+  filter(model==dataset) %>% 
+  full_join(truth) %>% 
+  filter(meanrhat<=1.01,mean_div==0) %>% 
+  mutate(recovered=simulated_values>q5&simulated_values<q95)
+
+recovery_rate<-combined %>% 
+  group_by(dataset,variable) %>% 
+  summarise(
+    n=sum(!is.na(recovered)),
+    recovery_rate=mean(recovered),
+    lb=qbeta(.05,1+recovery_rate*n,1+(1-recovery_rate)*n),
+    ub=qbeta(.95,1+recovery_rate*n,1+(1-recovery_rate)*n)
+    )
+
+combined<-combined %>% 
+  full_join(recovery_rate)
+
+combined %>% 
+  filter(variable=='mu_threshold') %>% 
+  ggplot()+
+  geom_abline(aes(intercept = 0,slope=1))+
+  geom_linerange(aes(x=simulated_values,ymin=q5,ymax=q95,color=dataset))+
+  geom_text(aes(x=25,y=-40+10*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  theme_minimal()+
+  scale_color_manual(values = c('#0072B2','#E69F00'))+
+  theme(legend.position = 'none')+
+  xlab('Ground truth')+
+  ylab('Estimate')+
+  ggtitle('Group mean threshold')
+
+
+ggsave(here::here("figures",'Figure3B.tiff'),units = 'cm',width = 8,height = 6.5)
+
+combined %>% 
+  filter(variable=='mu_slope') %>% 
+  ggplot()+
+  geom_abline(aes(intercept = 0,slope=1))+
+  geom_linerange(aes(x=simulated_values,ymin=q5,ymax=q95,color=dataset))+
+  geom_text(aes(x=-1,y=-3+.35*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  theme_minimal()+
+  scale_color_manual(values = c('#0072B2','#E69F00'))+
+  theme(legend.position = 'none')+
+  xlab('Ground truth')+
+  ylab('Estimate')+
+  ggtitle('Group mean log(slope)')
+
+
+ggsave(here::here("figures",'Figure3C.tiff'),units = 'cm',width = 8,height = 6.5)
+
+combined %>% 
+  filter(variable=='mu_slope') %>% 
+  ggplot()+
+  geom_abline(aes(intercept = 0,slope=1))+
+  geom_linerange(aes(x=exp(simulated_values),ymin=exp(q5),ymax=exp(q95),color=dataset))+
+  geom_text(aes(x=0.7,y=0.05+.05*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  theme_minimal()+
+  scale_color_manual(values = c('#0072B2','#E69F00'))+
+  theme(legend.position = 'none')+
+  xlab('Ground truth')+
+  ylab('Estimate')+
+  ggtitle('Group mean slope')
+
+
+ggsave(here::here("figures",'Figure3C_alt.tiff'),units = 'cm',width = 8,height = 6.5)
+
+combined %>% 
+  filter(variable=='mu_lapse') %>% 
+  ggplot()+
+  geom_abline(aes(intercept = 0,slope=1))+
+  geom_linerange(aes(x=simulated_values,ymin=q5,ymax=q95,color=dataset))+
+  geom_text(aes(x=-2.5,y=-10+.8*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  theme_minimal()+
+  scale_color_manual(values = c('#0072B2','#E69F00'))+
+  theme(legend.position = 'none')+
+  xlab('Ground truth')+
+  ylab('Estimate')+
+  ggtitle('Group mean lapse')+
+  ylim(c(-10,0))
+
+ggsave(here::here("figures",'Figure3D.tiff'),units = 'cm',width = 8,height = 6.5)
+
+combined %>% 
+  filter(variable=='mu_lapse') %>% 
+  ggplot()+
+  geom_abline(aes(intercept = 0,slope=1))+
+  geom_linerange(aes(x=inv_logit(simulated_values),ymin=inv_logit(q5),ymax=inv_logit(q95),color=dataset))+
+  # geom_text(aes(x=-2.5,y=-10+.8*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  theme_minimal()+
+  scale_color_manual(values = c('#0072B2','#E69F00'))+
+  theme(legend.position = 'none')+
+  xlab('Ground truth')+
+  ylab('Estimate')+
+  ggtitle('Group mean lapse')
+  # ylim(c(-10,0))
+
+ggsave(here::here("figures",'Figure3D_alt.tiff'),units = 'cm',width = 8,height = 6.5)
+
+```

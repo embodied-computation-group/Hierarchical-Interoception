@@ -1,0 +1,78 @@
+---
+title: "Figures"
+author: "A.S. Courtin"
+date: "2025-02-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(cmdstanr)
+
+
+source(here::here("scripts","utility.R"))
+```
+
+```{r}
+PFs<-
+  tibble(x=seq(-6,11,.001)) %>% 
+  mutate(
+    Gaussian=pnorm(x-2),
+    Gumbel=1-exp(-10^(0.4*(x-2.4))),
+    ) %>% 
+  pivot_longer(cols = !x) %>% 
+  rename(Formulation=name)
+  
+
+PFs %>% 
+  ggplot()+
+  geom_line(aes(x=x,y=value,color=Formulation),linewidth=1)+
+  geom_vline(aes(xintercept = 0),linetype='dotted')+
+  xlab('\u0394 BPM')+
+  ylab('P(response)')+
+  labs(color='')+
+  theme_minimal()+
+  guides(color=guide_legend(position = "inside"))+
+  theme(
+    text=element_text(size = 12),
+    legend.position.inside = c(0.8, 0.5)
+    )+
+  scale_color_manual(values = c('#0072B2','#E69F00'))+
+  coord_cartesian(xlim = c(-5, 10))+
+  ggtitle('Response-coded PF')
+
+ggsave(here::here("figures",'Figure1A.tiff'),units = 'cm',width = 10,height = 6)
+```
+
+```{r}
+PFs<-
+  tibble(x=seq(0,11,.001)) %>% 
+  mutate(
+    Weibull=(0.5+0.5*(1-exp(-(x/2.4)^2)))
+    ) %>% 
+  pivot_longer(cols = !x) %>% 
+  rename(Formulation=name)
+  
+
+PFs %>% 
+  ggplot()+
+  geom_line(aes(x=x,y=value,color=Formulation),linewidth=1)+
+  geom_vline(aes(xintercept = 0),linetype='dotted')+
+  xlab('% obstruction')+
+  ylab('P(correct)')+
+  labs(color='')+
+  theme_minimal()+
+  guides(color=guide_legend(position = "inside"))+
+  theme(
+    text=element_text(size = 12),
+    legend.position.inside = c(0.8, 0.5)
+    )+
+  scale_color_manual(values = c(rgb(118/255,42/255,131/255)))+
+  ggtitle('Accuracy-coded PF')
+
+
+ggsave(here::here("figures",'Figure1B.tiff'),units = 'cm',width = 10,height = 6)
+```
+
+

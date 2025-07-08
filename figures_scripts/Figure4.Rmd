@@ -1,0 +1,294 @@
+---
+title: "Figure4"
+output: html_document
+---
+
+```{r}
+rm(list=ls())
+fit<-readRDS('vmp_hrd_fit.RDS')
+fit
+fit$draws(variables = c('gm[2]','gm[4]'), format = 'df') %>% 
+  rename(
+    delta_beta=`gm[2]`,
+    delta_alpha=`gm[4]`
+    ) %>% 
+  summarise(
+    m_b=mean(delta_beta),    
+    m_a=mean(delta_alpha),
+    lb_b=quantile(delta_beta,0.025),
+    ub_b=quantile(delta_beta,0.975),
+    lb_a=quantile(delta_alpha,0.025),
+    ub_a=quantile(delta_alpha,0.975)
+    ) %>% 
+  pivot_longer(cols = everything()) %>% 
+  mutate(value=round(value,2))
+```
+
+```{r}
+library(mvtnorm)
+draws<-
+  fit$draws(
+    variables = c('gm','tau_u','L_u'),
+    format = 'df'
+    ) %>% 
+  rename(
+    mu_beta_i=`gm[1]`,
+    mu_beta_die=`gm[2]`,
+    mu_alpha_i=`gm[3]`,
+    mu_alpha_die=`gm[4]`,
+    mu_lambda=`gm[5]`,    
+    tau_beta_i=`tau_u[1]`,
+    tau_beta_die=`tau_u[2]`,
+    tau_alpha_i=`tau_u[3]`,
+    tau_alpha_die=`tau_u[4]`,
+    tau_lambda=`tau_u[5]`
+  )
+
+draws$omega_1_1=draws$`L_u[1,1]`*draws$`L_u[1,1]`+draws$`L_u[1,2]`*draws$`L_u[1,2]`+draws$`L_u[1,3]`*draws$`L_u[1,3]`+draws$`L_u[1,4]`*draws$`L_u[1,4]`
+draws$omega_1_2=draws$`L_u[1,1]`*draws$`L_u[2,1]`+draws$`L_u[1,2]`*draws$`L_u[2,2]`+draws$`L_u[1,3]`*draws$`L_u[2,3]`+draws$`L_u[1,4]`*draws$`L_u[2,4]`
+draws$omega_1_3=draws$`L_u[1,1]`*draws$`L_u[3,1]`+draws$`L_u[1,2]`*draws$`L_u[3,2]`+draws$`L_u[1,3]`*draws$`L_u[3,3]`+draws$`L_u[1,4]`*draws$`L_u[3,4]`
+draws$omega_1_4=draws$`L_u[1,1]`*draws$`L_u[4,1]`+draws$`L_u[1,2]`*draws$`L_u[4,2]`+draws$`L_u[1,3]`*draws$`L_u[4,3]`+draws$`L_u[1,4]`*draws$`L_u[4,4]`
+draws$omega_2_1=draws$`L_u[2,1]`*draws$`L_u[1,1]`+draws$`L_u[2,2]`*draws$`L_u[1,2]`+draws$`L_u[2,3]`*draws$`L_u[1,3]`+draws$`L_u[2,4]`*draws$`L_u[1,4]`
+draws$omega_2_2=draws$`L_u[2,1]`*draws$`L_u[2,1]`+draws$`L_u[2,2]`*draws$`L_u[2,2]`+draws$`L_u[2,3]`*draws$`L_u[2,3]`+draws$`L_u[2,4]`*draws$`L_u[2,4]`
+draws$omega_2_3=draws$`L_u[2,1]`*draws$`L_u[3,1]`+draws$`L_u[2,2]`*draws$`L_u[3,2]`+draws$`L_u[2,3]`*draws$`L_u[3,3]`+draws$`L_u[2,4]`*draws$`L_u[3,4]`
+draws$omega_2_4=draws$`L_u[2,1]`*draws$`L_u[4,1]`+draws$`L_u[2,2]`*draws$`L_u[4,2]`+draws$`L_u[2,3]`*draws$`L_u[4,3]`+draws$`L_u[2,4]`*draws$`L_u[4,4]`
+draws$omega_3_1=draws$`L_u[3,1]`*draws$`L_u[1,1]`+draws$`L_u[3,2]`*draws$`L_u[1,2]`+draws$`L_u[3,3]`*draws$`L_u[1,3]`+draws$`L_u[3,4]`*draws$`L_u[1,4]`
+draws$omega_3_2=draws$`L_u[3,1]`*draws$`L_u[2,1]`+draws$`L_u[3,2]`*draws$`L_u[2,2]`+draws$`L_u[3,3]`*draws$`L_u[2,3]`+draws$`L_u[3,4]`*draws$`L_u[2,4]`
+draws$omega_3_3=draws$`L_u[3,1]`*draws$`L_u[3,1]`+draws$`L_u[3,2]`*draws$`L_u[3,2]`+draws$`L_u[3,3]`*draws$`L_u[3,3]`+draws$`L_u[3,4]`*draws$`L_u[3,4]`
+draws$omega_3_4=draws$`L_u[3,1]`*draws$`L_u[4,1]`+draws$`L_u[3,2]`*draws$`L_u[4,2]`+draws$`L_u[3,3]`*draws$`L_u[4,3]`+draws$`L_u[3,4]`*draws$`L_u[4,4]`
+draws$omega_4_1=draws$`L_u[4,1]`*draws$`L_u[1,1]`+draws$`L_u[3,2]`*draws$`L_u[1,2]`+draws$`L_u[4,3]`*draws$`L_u[1,3]`+draws$`L_u[4,4]`*draws$`L_u[1,4]`
+draws$omega_4_2=draws$`L_u[4,1]`*draws$`L_u[2,1]`+draws$`L_u[4,2]`*draws$`L_u[2,2]`+draws$`L_u[4,3]`*draws$`L_u[2,3]`+draws$`L_u[4,4]`*draws$`L_u[2,4]`
+draws$omega_4_3=draws$`L_u[4,1]`*draws$`L_u[3,1]`+draws$`L_u[4,2]`*draws$`L_u[3,2]`+draws$`L_u[4,3]`*draws$`L_u[3,3]`+draws$`L_u[4,4]`*draws$`L_u[3,4]`
+draws$omega_4_4=draws$`L_u[4,1]`*draws$`L_u[4,1]`+draws$`L_u[4,2]`*draws$`L_u[4,2]`+draws$`L_u[4,3]`*draws$`L_u[4,3]`+draws$`L_u[4,4]`*draws$`L_u[4,4]`
+
+for(draw in 1:4000){
+  omega<-matrix(c(
+    draws$omega_1_1[draw],draws$omega_1_2[draw],draws$omega_1_3[draw],draws$omega_1_4[draw],
+    draws$omega_2_1[draw],draws$omega_2_2[draw],draws$omega_2_3[draw],draws$omega_2_4[draw],
+    draws$omega_3_1[draw],draws$omega_3_2[draw],draws$omega_3_3[draw],draws$omega_3_4[draw],
+    draws$omega_4_1[draw],draws$omega_4_2[draw],draws$omega_4_3[draw],draws$omega_4_4[draw]
+    ),
+  nrow = 4,ncol=4
+  )
+  tau<-c(draws$tau_beta_i[draw],draws$tau_beta_die[draw],draws$tau_alpha_i[draw],draws$tau_alpha_die[draw])
+  sigma<-diag(tau)%*%omega%*%diag(tau)
+  mu<-c(draws$mu_beta_i[draw],draws$mu_beta_die[draw],draws$mu_alpha_i[draw],draws$mu_alpha_die[draw])
+
+  d<-rmvnorm(1,mu,sigma)
+  
+  draws$beta_i[draw]=exp(d[1])
+  draws$beta_e[draw]=exp(d[1]+d[2])
+  draws$alpha_i[draw]=d[3]
+  draws$alpha_e[draw]=d[3]+d[4]
+  draws$lambda[draw]=0.5/(1+exp(-rnorm(1,draws$mu_lambda[draw],draws$tau_lambda[draw])))
+}
+
+g<-expand.grid(.draw=1:4000,x=seq(-65,65,.1))
+
+pfs_ppc<-
+  draws %>% 
+  full_join(g) %>% 
+  mutate(
+    Intero_g=.5/(1+exp(-mu_lambda))+(1-2*.5/(1+exp(-mu_lambda)))*pnorm(x,mu_alpha_i,1/exp(mu_beta_i)),
+    Extero_g=.5/(1+exp(-mu_lambda))+(1-2*.5/(1+exp(-mu_lambda)))*pnorm(x,mu_alpha_i+mu_alpha_die,1/exp(mu_beta_i+mu_beta_die)),
+    Intero_s=lambda+(1-2*lambda)*pnorm(x,alpha_i,1/beta_i),
+    Extero_s=lambda+(1-2*lambda)*pnorm(x,alpha_e,1/beta_e)
+    ) %>% 
+  select(Intero_g,Extero_g,Intero_s,Extero_s,x,.draw) %>%  
+  pivot_longer(cols = c(Intero_g,Extero_g,Intero_s,Extero_s), names_to = c("Modality", "Measure"), names_sep = "_") %>% 
+  group_by(x,Modality,Measure) %>% 
+  summarise(
+    lb=quantile(value,0.025),
+    ub=quantile(value,0.975),
+    m=quantile(value,0.5),
+  )
+pfs_ppc$m[pfs_ppc$Measure=='s']<-pfs_ppc$m[pfs_ppc$Measure=='g']
+pfs_ppc$Modality<-ordered(pfs_ppc$Modality,levels=c('Intero','Extero'))
+
+pf_plot<-
+  pfs_ppc %>% 
+  ggplot()+
+  geom_ribbon(aes(x=x,ymin = lb,ymax=ub,fill = Modality,alpha=Measure))+
+  geom_line(aes(x=x,y=m,color = Modality),linewidth=1)+
+  geom_vline(aes(xintercept = 0),linetype='dotted',color='grey',linewidth=1)+
+  scale_fill_manual(values=c('#56b4e9','#009E73'))+
+  scale_alpha_manual(labels=c('Group mean','New participant'),values=c(.5,.2))+
+  scale_color_manual(values=c('#56b4e9','#009E73'))+
+  labs(alpha='95% CI')+
+  xlab('\u0394 BPM')+
+  ylab('P(response="faster")')+
+  theme_minimal()+
+  theme(
+    text=element_text(size = 12)
+    )+
+  coord_cartesian(xlim = c(-60, 60))+
+  ggtitle('Heart Rate Discrimination Task (N=513)')
+
+print(pf_plot)
+ggsave('Figure3A.tiff',units = 'cm',width = 16,height = 6)
+```
+```{r}
+library(mvtnorm)
+draws<-
+  fit$draws(
+    variables = c('gm','tau_u','L_u'),
+    format = 'df'
+    ) %>% 
+  rename(
+    mu_beta_i=`gm[1]`,
+    mu_beta_die=`gm[2]`,
+    mu_alpha_i=`gm[3]`,
+    mu_alpha_die=`gm[4]`,
+    mu_lambda=`gm[5]`,    
+    tau_beta_i=`tau_u[1]`,
+    tau_beta_die=`tau_u[2]`,
+    tau_alpha_i=`tau_u[3]`,
+    tau_alpha_die=`tau_u[4]`,
+    tau_lambda=`tau_u[5]`
+  )
+
+draws$omega_1_1=draws$`L_u[1,1]`*draws$`L_u[1,1]`+draws$`L_u[1,2]`*draws$`L_u[1,2]`+draws$`L_u[1,3]`*draws$`L_u[1,3]`+draws$`L_u[1,4]`*draws$`L_u[1,4]`
+draws$omega_1_2=draws$`L_u[1,1]`*draws$`L_u[2,1]`+draws$`L_u[1,2]`*draws$`L_u[2,2]`+draws$`L_u[1,3]`*draws$`L_u[2,3]`+draws$`L_u[1,4]`*draws$`L_u[2,4]`
+draws$omega_1_3=draws$`L_u[1,1]`*draws$`L_u[3,1]`+draws$`L_u[1,2]`*draws$`L_u[3,2]`+draws$`L_u[1,3]`*draws$`L_u[3,3]`+draws$`L_u[1,4]`*draws$`L_u[3,4]`
+draws$omega_1_4=draws$`L_u[1,1]`*draws$`L_u[4,1]`+draws$`L_u[1,2]`*draws$`L_u[4,2]`+draws$`L_u[1,3]`*draws$`L_u[4,3]`+draws$`L_u[1,4]`*draws$`L_u[4,4]`
+draws$omega_2_1=draws$`L_u[2,1]`*draws$`L_u[1,1]`+draws$`L_u[2,2]`*draws$`L_u[1,2]`+draws$`L_u[2,3]`*draws$`L_u[1,3]`+draws$`L_u[2,4]`*draws$`L_u[1,4]`
+draws$omega_2_2=draws$`L_u[2,1]`*draws$`L_u[2,1]`+draws$`L_u[2,2]`*draws$`L_u[2,2]`+draws$`L_u[2,3]`*draws$`L_u[2,3]`+draws$`L_u[2,4]`*draws$`L_u[2,4]`
+draws$omega_2_3=draws$`L_u[2,1]`*draws$`L_u[3,1]`+draws$`L_u[2,2]`*draws$`L_u[3,2]`+draws$`L_u[2,3]`*draws$`L_u[3,3]`+draws$`L_u[2,4]`*draws$`L_u[3,4]`
+draws$omega_2_4=draws$`L_u[2,1]`*draws$`L_u[4,1]`+draws$`L_u[2,2]`*draws$`L_u[4,2]`+draws$`L_u[2,3]`*draws$`L_u[4,3]`+draws$`L_u[2,4]`*draws$`L_u[4,4]`
+draws$omega_3_1=draws$`L_u[3,1]`*draws$`L_u[1,1]`+draws$`L_u[3,2]`*draws$`L_u[1,2]`+draws$`L_u[3,3]`*draws$`L_u[1,3]`+draws$`L_u[3,4]`*draws$`L_u[1,4]`
+draws$omega_3_2=draws$`L_u[3,1]`*draws$`L_u[2,1]`+draws$`L_u[3,2]`*draws$`L_u[2,2]`+draws$`L_u[3,3]`*draws$`L_u[2,3]`+draws$`L_u[3,4]`*draws$`L_u[2,4]`
+draws$omega_3_3=draws$`L_u[3,1]`*draws$`L_u[3,1]`+draws$`L_u[3,2]`*draws$`L_u[3,2]`+draws$`L_u[3,3]`*draws$`L_u[3,3]`+draws$`L_u[3,4]`*draws$`L_u[3,4]`
+draws$omega_3_4=draws$`L_u[3,1]`*draws$`L_u[4,1]`+draws$`L_u[3,2]`*draws$`L_u[4,2]`+draws$`L_u[3,3]`*draws$`L_u[4,3]`+draws$`L_u[3,4]`*draws$`L_u[4,4]`
+draws$omega_4_1=draws$`L_u[4,1]`*draws$`L_u[1,1]`+draws$`L_u[3,2]`*draws$`L_u[1,2]`+draws$`L_u[4,3]`*draws$`L_u[1,3]`+draws$`L_u[4,4]`*draws$`L_u[1,4]`
+draws$omega_4_2=draws$`L_u[4,1]`*draws$`L_u[2,1]`+draws$`L_u[4,2]`*draws$`L_u[2,2]`+draws$`L_u[4,3]`*draws$`L_u[2,3]`+draws$`L_u[4,4]`*draws$`L_u[2,4]`
+draws$omega_4_3=draws$`L_u[4,1]`*draws$`L_u[3,1]`+draws$`L_u[4,2]`*draws$`L_u[3,2]`+draws$`L_u[4,3]`*draws$`L_u[3,3]`+draws$`L_u[4,4]`*draws$`L_u[3,4]`
+draws$omega_4_4=draws$`L_u[4,1]`*draws$`L_u[4,1]`+draws$`L_u[4,2]`*draws$`L_u[4,2]`+draws$`L_u[4,3]`*draws$`L_u[4,3]`+draws$`L_u[4,4]`*draws$`L_u[4,4]`
+
+for(draw in 1:4000){
+  omega<-matrix(c(
+    draws$omega_1_1[draw],draws$omega_1_2[draw],draws$omega_1_3[draw],draws$omega_1_4[draw],
+    draws$omega_2_1[draw],draws$omega_2_2[draw],draws$omega_2_3[draw],draws$omega_2_4[draw],
+    draws$omega_3_1[draw],draws$omega_3_2[draw],draws$omega_3_3[draw],draws$omega_3_4[draw],
+    draws$omega_4_1[draw],draws$omega_4_2[draw],draws$omega_4_3[draw],draws$omega_4_4[draw]
+    ),
+  nrow = 4,ncol=4
+  )
+  tau<-c(draws$tau_beta_i[draw],draws$tau_beta_die[draw],draws$tau_alpha_i[draw],draws$tau_alpha_die[draw])
+  sigma<-diag(tau)%*%omega%*%diag(tau)
+  mu<-c(draws$mu_beta_i[draw],draws$mu_beta_die[draw],draws$mu_alpha_i[draw],draws$mu_alpha_die[draw])
+
+  d<-rmvnorm(1,mu,sigma)
+  
+  draws$beta_i[draw]=exp(d[1])
+  draws$beta_e[draw]=exp(d[1]+d[2])
+  draws$alpha_i[draw]=d[3]
+  draws$alpha_e[draw]=d[3]+d[4]
+  draws$lambda[draw]=0.5/(1+exp(-rnorm(1,draws$mu_lambda[draw],draws$tau_lambda[draw])))
+}
+
+g<-expand.grid(.draw=1:4000,x=seq(-65,65,.1))
+
+pfs_ppc<-
+  draws %>% 
+  full_join(g) %>% 
+  mutate(
+    Intero_g=.5/(1+exp(-mu_lambda))+(1-2*.5/(1+exp(-mu_lambda)))*pnorm(x,mu_alpha_i,1/exp(mu_beta_i)),
+    Extero_g=.5/(1+exp(-mu_lambda))+(1-2*.5/(1+exp(-mu_lambda)))*pnorm(x,mu_alpha_i+mu_alpha_die,1/exp(mu_beta_i+mu_beta_die)),
+    Intero_s=lambda+(1-2*lambda)*pnorm(x,alpha_i,1/beta_i),
+    Extero_s=lambda+(1-2*lambda)*pnorm(x,alpha_e,1/beta_e)
+    ) %>% 
+  select(Intero_g,Extero_g,Intero_s,Extero_s,x,.draw) %>%  
+  pivot_longer(cols = c(Intero_g,Extero_g,Intero_s,Extero_s), names_to = c("Modality", "Type"), names_sep = "_") %>% 
+  pivot_wider(names_from = Type) %>% 
+  group_by(x,Modality) %>% 
+  summarise(
+    s_lb_ci_95=quantile(s,0.025),
+    s_ub_ci_95=quantile(s,0.975),
+    s_lb_ci_90=quantile(s,0.05),
+    s_ub_ci_90=quantile(s,0.95),
+    s_lb_ci_80=quantile(s,0.1),
+    s_ub_ci_80=quantile(s,0.9),
+    s_lb_ci_60=quantile(s,0.20),
+    s_ub_ci_60=quantile(s,0.80),
+    m_g=quantile(g,0.5),
+    lb_g=quantile(g,0.025),
+    ub_g=quantile(g,0.975),
+  ) %>%  
+  pivot_longer(
+    cols = matches("s_(lb|ub)_ci_\\d+"),  # Select only CI columns
+    names_to = c("bound", "ci"), 
+    names_pattern = "s_(lb|ub)_ci_(\\d+)", 
+    values_to = "value"
+  ) %>%
+  pivot_wider(
+    names_from = "bound",
+    values_from = "value",
+    names_prefix = "s_"
+  ) %>% 
+  pivot_longer(
+    cols = c(ub_g, m_g, lb_g),
+    names_to = "type",
+    names_pattern = "(.*)_g",  # Extract "ub", "m", or "lb"
+    values_to = "g"
+  )
+  
+pfs_ppc$Modality<-ordered(pfs_ppc$Modality,levels=c('Intero','Extero'))
+pfs_ppc$type<-ordered(pfs_ppc$type,levels=c('m','lb','ub'))
+
+pf_plot<-
+  pfs_ppc %>% 
+    arrange(Modality) %>% 
+  ggplot()+
+  geom_ribbon(aes(x=x,ymin = s_lb,ymax=s_ub,fill = Modality,alpha=ci))+
+  geom_line(aes(x=x,y=g,color = Modality,linetype=type),linewidth=1)+
+  geom_vline(aes(xintercept = 0),linetype='dotted',color='grey',linewidth=1)+
+  scale_fill_manual(values=c('#56b4e9','#009E73'))+
+  scale_color_manual(values=c('#56b4e9','#009E73'))+
+  scale_linetype_manual(labels=c('Posterior mean','95% CI',''),values = c('solid','dotted','dotted'))+  
+  scale_alpha_manual(labels=c('60% CI','80% CI','90% CI','95% CI'),values=c(.4,.3,.2,.1))+
+  guides(linetype = guide_legend(order=1, override.aes = list(linetype = c('solid','dotted','blank'))))+
+  labs(linetype='Group average',alpha='New participant')+
+  xlab('\u0394 BPM')+
+  ylab('P(response="faster")')+
+  theme_minimal()+
+  theme(
+    text=element_text(size = 12)
+    )+
+  coord_cartesian(xlim = c(-60, 60))+
+  ggtitle('Heart Rate Discrimination Task (N=513)')+
+  facet_wrap(.~Modality,ncol=1)
+
+print(pf_plot)
+ggsave('Figure4A_alt.tiff',units = 'cm',width = 16,height = 10)
+```
+
+
+
+```{r}
+draws<-
+  fit$draws(variables = 'gm',format = 'df') %>% 
+  rename(
+    Slope=`gm[2]`,
+    Threshold=`gm[4]`
+  ) %>% 
+  select(Slope,Threshold) %>% 
+  pivot_longer(cols = everything())
+
+draws$name[draws$name=='Slope']<-'Log(Slope)'
+
+diff_plot<-draws %>% 
+  ggplot()+
+  geom_histogram(aes(x=value),color='black',bins = 50)+
+  geom_vline(aes(xintercept = 0),linetype='dotted',color='grey',linewidth=1)+
+  xlab('Extero - Intero')+
+  facet_wrap(.~name,scale='free')+
+  theme_minimal()+
+  theme(
+    plot.title = element_text(face = "italic"),
+    text=element_text(size = 12)
+    )+
+  ggtitle('Difference between conditions')
+print(diff_plot)
+ggsave('Figure4B.tiff',units = 'cm',width = 16,height = 4)
+
+```

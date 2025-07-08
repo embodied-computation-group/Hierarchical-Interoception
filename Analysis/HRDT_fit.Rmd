@@ -1,0 +1,21 @@
+---
+title: "HRDT_fit"
+output: html_document
+---
+
+```{r}
+source(here::here("scripts","utility.R"))
+library(loo)
+library(tidyverse)
+library(cmdstanr)
+```
+
+
+
+
+```{r}
+Gumbel_loo <- readRDS(here::here("results","Fit model comparison","Loo moment matching","Gumbel_loo.rds"))
+Normal_loo <- readRDS(here::here("results","Fit model comparison","Loo moment matching","Normal_loo.rds"))
+loo::loo_compare(list(Gumbel_loo,Normal_loo))
+```
+

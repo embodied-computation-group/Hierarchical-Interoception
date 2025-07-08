@@ -1,0 +1,769 @@
+---
+title: "Figures"
+author: "A.S. Courtin"
+date: "2025-02-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(cmdstanr)
+rm(list=ls())
+
+inv_logit<-function(x){
+  y=1/(1+exp(-x))
+  return(y)
+}
+```
+
+
+
+
+```{r}
+draws_h<-hierarchical_slope_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='h')
+draws_s<-simple_test_slope_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='s')
+draws_u<-uncertainty_propagation_slope_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='u')
+
+draws<-full_join(draws_h,draws_s) %>% full_join(draws_u)
+
+pfs<-expand.grid(
+  .draw=1:max(draws$.draw),
+  es=seq(0,1,.01),
+  ss=unique(all_data$subjects),
+  nt=unique(all_data$trials)
+  ) %>% 
+  full_join(draws) %>% 
+  mutate(
+    alpha=exp(intercept_alpha)*ss^`expo_alpha[1]`*nt^`expo_alpha[2]`,
+    beta=exp(intercept_beta)*ss^`expo_beta[1]`*nt^`expo_beta[2]`,
+    p=1/(1+exp(-(es-alpha)/beta))
+         ) %>% 
+  group_by(es,ss,nt,test_type) %>% 
+  summarise(
+    lb=quantile(p,0.025),
+    ub=quantile(p,0.975)
+    ) %>% 
+  rename(subjects=ss,effect_size=es,trials=nt)
+
+all_data_slope<-
+  all_data %>% 
+  filter(parameter=='Slope') %>% 
+  full_join(pfs)
+
+all_data_slope %>% 
+  filter(test_type!='u') %>% 
+  ggplot()+
+  geom_hline(aes(yintercept = .9),linetype='dotted',color='grey')+
+  geom_hline(aes(yintercept = .8),linetype='dotted',color='grey')+
+  geom_hline(aes(yintercept = .05),linetype='dotted',color='grey')+
+  geom_ribbon(aes(x=effect_size,y=mean,ymin=lb,ymax=ub,fill=test_type),alpha=.5)+
+  geom_pointrange(aes(x=effect_size,y=mean,ymin=lower,ymax=upper,color=test_type),size=.01,position = position_dodge(width = .05))+
+  facet_wrap(trials~subjects, scales = 'free')+
+  xlab('Standardized effect size (Cohen´s d)')+
+  ylab('Statistical power')+
+  guides(color='none',fill='none')+
+  scale_fill_manual(labels=c('Hierarchical','Simple t-test','Weighted t-test'),values = c('#D55E00','#CC79A7','#0072B2'))+
+  scale_color_manual(labels=c('Hierarchical','Simple t-test','Weighted t-test'),values = c('#D55E00','#CC79A7','#0072B2'))+
+  scale_x_continuous(breaks=c(0,0.2,0.5,0.8))+
+  scale_y_continuous(breaks=c(0,.5,1))+
+  theme_classic()+
+    theme(
+      text=element_text(size = 12),
+      strip.text = element_blank()  # Remove facet labels
+  )+
+  coord_cartesian(ylim=c(0,1))
+ggsave('Figure7A.tiff',units = 'cm',width = 16,height = 10)
+
+```
+
+```{r}
+draws_h<-hierarchical_slope_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='h')
+draws_s<-simple_test_slope_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='s')
+draws_u<-uncertainty_propagation_slope_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='u')
+
+draws<-full_join(draws_h,draws_s) %>% full_join(draws_u)
+
+pfs<-expand.grid(
+  .draw=1:max(draws$.draw),
+  es=seq(0,1,.01),
+  ss=unique(all_data$subjects),
+  nt=unique(all_data$trials)
+  ) %>% 
+  full_join(draws) %>% 
+  mutate(
+    alpha=exp(intercept_alpha)*ss^`expo_alpha[1]`*nt^`expo_alpha[2]`,
+    beta=exp(intercept_beta)*ss^`expo_beta[1]`*nt^`expo_beta[2]`,
+    p=1/(1+exp(-(es-alpha)/beta))
+         ) %>% 
+  group_by(es,ss,nt,test_type) %>% 
+  summarise(
+    lb=quantile(p,0.025),
+    ub=quantile(p,0.975)
+    ) %>% 
+  rename(subjects=ss,effect_size=es,trials=nt)
+
+all_data_slope<-
+  all_data %>% 
+  filter(parameter=='Slope') %>% 
+  full_join(pfs)
+
+all_data_slope %>% 
+  ggplot()+
+  geom_hline(aes(yintercept = .9),linetype='dotted',color='grey')+
+  geom_hline(aes(yintercept = .8),linetype='dotted',color='grey')+
+  geom_hline(aes(yintercept = .05),linetype='dotted',color='grey')+
+  geom_ribbon(aes(x=effect_size,y=mean,ymin=lb,ymax=ub,fill=test_type),alpha=.5)+
+  geom_pointrange(aes(x=effect_size,y=mean,ymin=lower,ymax=upper,color=test_type),size=.01,position = position_dodge(width = .05))+
+  facet_wrap(trials~subjects, scales = 'free')+
+  xlab('Standardized effect size (Cohen´s d)')+
+  ylab('Statistical power')+
+  guides(color='none',fill='none')+
+  scale_fill_manual(labels=c('Hierarchical','Simple t-test','Weighted t-test'),values = c('#D55E00','#CC79A7','#0072B2'))+
+  scale_color_manual(labels=c('Hierarchical','Simple t-test','Weighted t-test'),values = c('#D55E00','#CC79A7','#0072B2'))+
+  scale_x_continuous(breaks=c(0,0.2,0.5,0.8))+
+  scale_y_continuous(breaks=c(0,.5,1))+
+  theme_classic()+
+    theme(
+      text=element_text(size = 12),
+      strip.text = element_blank()  # Remove facet labels
+  )+
+  coord_cartesian(ylim=c(0,1))
+ggsave('Figure7A_alt.tiff',units = 'cm',width = 16,height = 10)
+
+```
+
+```{r}
+draws_h<-hierarchical_slope_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='h')
+draws_s<-simple_test_slope_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='s')
+
+
+pfs_h<-expand.grid(
+  .draw=1:max(draws_h$.draw),
+  es=seq(.4,1,.2),
+  ss=seq(2,110,2),
+  nt=seq(2,110,2)
+  ) %>% 
+  full_join(draws_h) %>% 
+  mutate(
+    alpha=exp(intercept_alpha)*ss^`expo_alpha[1]`*nt^`expo_alpha[2]`,
+    beta=exp(intercept_beta)*ss^`expo_beta[1]`*nt^`expo_beta[2]`,
+    p=1/(1+exp(-(es-alpha)/beta))
+         ) %>% 
+  group_by(es,ss,nt) %>% 
+  summarize(p=mean(p))
+
+pfs_s<-expand.grid(
+  .draw=1:max(draws_h$.draw),
+  es=seq(.4,1,.2),
+  ss=seq(2,110,2),
+  nt=seq(2,110,2)
+  ) %>% 
+  full_join(draws_s) %>% 
+  mutate(
+    alpha=exp(intercept_alpha)*ss^`expo_alpha[1]`*nt^`expo_alpha[2]`,
+    beta=exp(intercept_beta)*ss^`expo_beta[1]`*nt^`expo_beta[2]`,
+    p=1/(1+exp(-(es-alpha)/beta))
+         ) %>% 
+  group_by(es,ss,nt) %>% 
+  summarize(p=mean(p))
+
+pfs_h %>% 
+  ggplot()+
+  geom_tile(aes(x=nt,y=ss,fill=p))+
+  geom_contour(aes(x=nt,y=ss,z=p),breaks = 0.8,color='#D55E00',linewidth = 1)+
+  geom_contour(data=pfs_s,aes(x=nt,y=ss,z=p),breaks = 0.8,color='#CC79A7',linewidth = 1)+
+  guides(color='none',fill='none')+
+  labs(fill='Power')+
+  xlab('N trials')+
+  ylab('N participants')+
+  facet_wrap(es~.,ncol=5,scales='free')+
+  scale_fill_gradient(low = rgb(.9*.7,.4*.7,0), high = "white",limits=c(0,1),breaks=c(seq(0,1,.2)))+
+  theme_minimal()+
+  theme(
+      text=element_text(size = 12),
+      strip.text = element_blank()  # Remove facet labels
+  )+
+  coord_cartesian(xlim=c(5,100),ylim=c(5,100))
+
+ggsave('Figure7B.tiff',units = 'cm',width = 16,height = 4)
+
+pfs_h %>% 
+  ggplot()+
+  geom_tile(aes(x=nt,y=ss,fill=p))+
+  geom_contour(aes(x=nt,y=ss,z=p),breaks = 0.8,color='#D55E00',linewidth = 1)+
+  geom_contour(data=pfs_s,aes(x=nt,y=ss,z=p),breaks = 0.8,color='#CC79A7',linewidth = 1)+
+  labs(fill='Power')+
+  xlab('N trials')+
+  ylab('N participants')+
+  facet_wrap(es~.,ncol=5,scales='free')+
+  scale_fill_gradient(low = rgb(.9*.7,.4*.7,0), high = "white",limits=c(0,1),breaks=c(seq(0,1,.2)))+
+  theme_minimal()+
+  theme(
+      text=element_text(size = 12),
+      strip.text = element_blank()  # Remove facet labels
+  )+
+  coord_cartesian(xlim=c(5,100),ylim=c(5,100))
+
+ggsave('probability_colorbar.tiff',units = 'cm',width = 16,height = 5)
+```
+
+```{r,message=F,warning=F}
+es=c(0.0)
+ns=c(15,30,60,120)
+nt=c(30,60,90)
+
+h<-tibble(dataset_idx=NA)
+for(t in nt){
+  for(s in ns){
+    for(e in es){
+      r<-readRDS(sprintf('PI_results/Threshold/results_Threshold_subject_%i_trials_%i_effectsize_%0.1f.RDS',s,t,e))
+      for(idx in 1:100){
+        l<-r[[idx]]
+        l<-l[[2]] %>% 
+          filter(variable!='lapse') %>% 
+          select(variable,mean,participant_idx) %>% 
+          separate(variable, into = c("parameter", "type"), sep = "_") %>%
+          pivot_wider(names_from = type, values_from = mean) %>%
+          mutate(
+            estimate_control = int,
+            estimate_treatment = int + dif
+          ) %>%
+          pivot_longer(
+            cols = c(estimate_control, estimate_treatment),
+            names_to = c(".value", "session"),
+            names_sep = "_"
+          ) %>%
+          mutate(
+            session = recode(session, control = "control", treatment = "treatment")
+          ) %>%
+          select(parameter, session, estimate,participant_idx) %>% 
+          rename(estimate_h=estimate)
+        l$es<-e
+        l$ns<-s
+        l$nt<-t
+        l$dataset_idx<-idx
+
+        h<-full_join(h,l)
+      }
+    }
+  }
+}
+
+a<-tibble(dataset_idx=NA)
+for(e in es){
+  r<-read_csv(sprintf('PI_data/Threshold_%0.1f_120_150_ppt_info.csv',e))
+  for(t in nt){
+    for(s in ns){
+      for(idx in 1:100){
+        l<-
+          r %>% 
+          filter(
+            dataset_idx==idx,
+            participant_idx<=s
+          ) %>% 
+          select(
+            participant_idx,
+            alpha_control,
+            alpha_treatment,
+            beta_control,
+            beta_treatment,
+            sprintf('alpha_estimate_control_%i',t),
+            sprintf('alpha_estimate_treatment_%i',t),
+            sprintf('beta_estimate_control_%i',t),
+            sprintf('beta_estimate_treatment_%i',t)
+          ) %>% 
+          pivot_longer(
+            cols = !participant_idx,
+            names_to = "param_session",
+            values_to = "value"
+          ) %>%
+          separate(param_session, into = c("type", "session", "extra"), sep = "_", fill = "right") %>%
+          mutate(group = if_else(is.na(extra), "simulated", "estimate")) 
+        
+        l$session[!is.na(l$extra)]<-l$extra[!is.na(l$extra)]
+        
+        
+        l<-
+          l%>%
+          select(-extra) %>%
+          pivot_wider(
+            names_from = group,
+            values_from = value
+          ) %>%
+          mutate(
+            parameter = type,
+            estimate = if_else(parameter == "beta", log(10^(estimate)), estimate),
+            simulated = if_else(parameter == "beta", log(simulated), simulated),
+          ) %>%
+          select(participant_idx, parameter, session, simulated, estimate) %>% 
+          rename(estimate_a=estimate)
+        
+        l$es<-e
+        l$ns<-s
+        l$nt<-t
+        l$dataset_idx<-idx
+
+        a<-full_join(a,l)
+      }
+    }
+  }
+}
+
+a<-a %>% filter(!is.na(dataset_idx))
+h<-h %>% filter(!is.na(dataset_idx))
+
+bias_threshold<-full_join(h,a) %>% 
+  mutate(bias_h=estimate_h-simulated,bias_a=estimate_a-simulated)
+
+bias_threshold %>% 
+  filter(parameter=='alpha') %>% 
+  ggplot()+
+  geom_point(aes(x=bias_a,y=bias_h),alpha=0.1)+
+  geom_abline()+
+  lims(x=c(-60,60),y=c(-60,60))+
+  theme_minimal()+
+  facet_grid(cols=vars(nt),row=vars(ns))
+
+bias_threshold %>% 
+  filter(parameter=='alpha') %>% 
+  ggplot()+
+  geom_density(aes(x=bias_a-bias_h))+
+  geom_vline(aes(xintercept = 0))+
+  theme_minimal()+
+  facet_grid(cols=vars(nt),row=vars(ns))+
+  xlim(c(-5,5))
+
+bias_threshold %>% 
+  filter(parameter=='beta') %>% 
+  ggplot()+
+  geom_point(aes(x=bias_a,y=bias_h),alpha=0.1)+
+  geom_abline()+
+  lims(x=c(-2,2),y=c(-2,2))+
+  theme_minimal()+
+  facet_grid(cols=vars(nt),row=vars(ns))
+```
+
+```{r,message=F,warning=F}
+es=c(0.0)
+ns=c(15,30,60,120)
+nt=c(30,60,90)
+
+h<-tibble(dataset_idx=NA)
+for(t in nt){
+  for(s in ns){
+    for(e in es){
+      r<-readRDS(sprintf('PI_results/Threshold/results_Threshold_subject_%i_trials_%i_effectsize_%0.1f.RDS',s,t,e))
+      for(idx in 1:100){
+        l<-r[[idx]]
+        l<-l[[2]] %>% 
+          filter(variable!='lapse') %>% 
+          select(variable,mean,participant_idx) %>% 
+          separate(variable, into = c("parameter", "type"), sep = "_") %>%
+          pivot_wider(names_from = type, values_from = mean) %>%
+          mutate(
+            estimate_control = int,
+            estimate_treatment = int + dif
+          ) %>%
+          pivot_longer(
+            cols = c(estimate_control, estimate_treatment),
+            names_to = c(".value", "session"),
+            names_sep = "_"
+          ) %>%
+          mutate(
+            session = recode(session, control = "control", treatment = "treatment")
+          ) %>%
+          select(parameter, session, estimate,participant_idx) %>% 
+          rename(estimate_h=estimate)
+        l$es<-e
+        l$ns<-s
+        l$nt<-t
+        l$dataset_idx<-idx
+
+        h<-full_join(h,l)
+      }
+    }
+  }
+}
+
+a<-tibble(dataset_idx=NA)
+for(e in es){
+  r<-read_csv(sprintf('PI_data/Threshold_%0.1f_120_150_ppt_info.csv',e))
+  for(t in nt){
+    for(s in ns){
+      for(idx in 1:100){
+        l<-
+          r %>% 
+          filter(
+            dataset_idx==idx,
+            participant_idx<=s
+          ) %>% 
+          select(
+            participant_idx,
+            alpha_control,
+            alpha_treatment,
+            beta_control,
+            beta_treatment,
+            sprintf('alpha_estimate_control_%i',t),
+            sprintf('alpha_estimate_treatment_%i',t),
+            sprintf('beta_estimate_control_%i',t),
+            sprintf('beta_estimate_treatment_%i',t)
+          ) %>% 
+          pivot_longer(
+            cols = !participant_idx,
+            names_to = "param_session",
+            values_to = "value"
+          ) %>%
+          separate(param_session, into = c("type", "session", "extra"), sep = "_", fill = "right") %>%
+          mutate(group = if_else(is.na(extra), "simulated", "estimate")) 
+        
+        l$session[!is.na(l$extra)]<-l$extra[!is.na(l$extra)]
+        
+        
+        l<-
+          l%>%
+          select(-extra) %>%
+          pivot_wider(
+            names_from = group,
+            values_from = value
+          ) %>%
+          mutate(
+            parameter = type,
+            estimate = if_else(parameter == "beta", log(10^(estimate)), estimate),
+            simulated = if_else(parameter == "beta", log(simulated), simulated),
+          ) %>%
+          select(participant_idx, parameter, session, simulated, estimate) %>% 
+          rename(estimate_a=estimate)
+        
+        l$es<-e
+        l$ns<-s
+        l$nt<-t
+        l$dataset_idx<-idx
+
+        a<-full_join(a,l)
+      }
+    }
+  }
+}
+
+a<-a %>% filter(!is.na(dataset_idx))
+h<-h %>% filter(!is.na(dataset_idx))
+
+bias_threshold<-full_join(h,a) %>% 
+  mutate(bias_h=estimate_h-simulated,bias_a=estimate_a-simulated)
+
+bias_threshold %>% 
+  filter(parameter=='alpha') %>% 
+  ggplot()+
+  geom_point(aes(x=bias_a,y=bias_h),alpha=0.1)+
+  geom_abline()+
+  lims(x=c(-60,60),y=c(-60,60))+
+  theme_minimal()+
+  facet_grid(cols=vars(nt),row=vars(ns))
+
+bias_threshold %>% 
+  filter(parameter=='alpha') %>% 
+  ggplot()+
+  geom_density(aes(x=bias_a-bias_h))+
+  geom_vline(aes(xintercept = 0))+
+  theme_minimal()+
+  facet_grid(cols=vars(nt),row=vars(ns))+
+  xlim(c(-5,5))
+
+bias_threshold %>% 
+  filter(parameter=='beta') %>% 
+  ggplot()+
+  geom_point(aes(x=bias_a,y=bias_h),alpha=0.1)+
+  geom_abline()+
+  lims(x=c(-2,2),y=c(-2,2))+
+  theme_minimal()+
+  facet_grid(cols=vars(nt),row=vars(ns))
+```
+
+```{r}
+draws_h<-hierarchical_threshold_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='h')
+draws_s<-simple_test_threshold_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='s')
+draws_u<-uncertainty_propagation_threshold_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='u')
+
+draws<-full_join(draws_h,draws_s) %>% full_join(draws_u)
+
+pfs<-expand.grid(
+  .draw=1:max(draws$.draw),
+  es=seq(0,1,.01),
+  ss=unique(all_data$subjects),
+  nt=unique(all_data$trials)
+  ) %>% 
+  full_join(draws) %>% 
+  mutate(
+    alpha=exp(intercept_alpha)*ss^`expo_alpha[1]`*nt^`expo_alpha[2]`,
+    beta=exp(intercept_beta)*ss^`expo_beta[1]`*nt^`expo_beta[2]`,
+    p=1/(1+exp(-(es-alpha)/beta))
+         ) %>% 
+  group_by(es,ss,nt,test_type) %>% 
+  summarise(
+    lb=quantile(p,0.025),
+    ub=quantile(p,0.975)
+    ) %>% 
+  rename(subjects=ss,effect_size=es,trials=nt)
+
+all_data_threshold<-
+  all_data %>% 
+  filter(parameter=='Threshold') %>% 
+  full_join(pfs)
+
+all_data_threshold %>% 
+  filter(test_type!='s') %>% 
+  ggplot()+
+  geom_hline(aes(yintercept = .9),linetype='dotted',color='grey')+
+  geom_hline(aes(yintercept = .8),linetype='dotted',color='grey')+
+  geom_hline(aes(yintercept = .05),linetype='dotted',color='grey')+
+  geom_ribbon(aes(x=effect_size,y=mean,ymin=lb,ymax=ub,fill=test_type),alpha=.5)+
+  geom_pointrange(aes(x=effect_size,y=mean,ymin=lower,ymax=upper,color=test_type),size=.01,position = position_dodge(width = .05))+
+  facet_wrap(trials~subjects, scales = 'free')+
+  xlab('Standardized effect size (Cohen´s d)')+
+  ylab('Statistical power')+
+  guides(color='none',fill='none')+
+  scale_fill_manual(labels=c('Hierarchical','Weighted t-test'),values = c('#D55E00','#0072B2'))+
+  scale_color_manual(labels=c('Hierarchical','Weighted t-test'),values =c('#D55E00','#0072B2'))+
+  scale_x_continuous(breaks=c(0,0.2,0.5,0.8))+
+  scale_y_continuous(breaks=c(0,.5,1))+
+  theme_classic()+
+    theme(
+      text=element_text(size = 12),
+      strip.text = element_blank()  # Remove facet labels
+  )+
+  coord_cartesian(ylim=c(0,1))
+ggsave('Figure6Asupp.tiff',units = 'cm',width = 16,height = 10)
+```
+
+```{r}
+draws_h<-hierarchical_threshold_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='h')
+draws_u<-uncertainty_propagation_threshold_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='s')
+
+
+pfs_h<-expand.grid(
+  .draw=1:max(draws_h$.draw),
+  es=seq(.4,1,.2),
+  ss=seq(2,110,2),
+  nt=seq(2,110,2)
+  ) %>% 
+  full_join(draws_h) %>% 
+  mutate(
+    alpha=exp(intercept_alpha)*ss^`expo_alpha[1]`*nt^`expo_alpha[2]`,
+    beta=exp(intercept_beta)*ss^`expo_beta[1]`*nt^`expo_beta[2]`,
+    p=1/(1+exp(-(es-alpha)/beta))
+         ) %>% 
+  group_by(es,ss,nt) %>% 
+  summarize(p=mean(p))
+
+pfs_s<-expand.grid(
+  .draw=1:max(draws_h$.draw),
+  es=seq(.4,1,.2),
+  ss=seq(2,110,2),
+  nt=seq(2,110,2)
+  ) %>% 
+  full_join(draws_s) %>% 
+  mutate(
+    alpha=exp(intercept_alpha)*ss^`expo_alpha[1]`*nt^`expo_alpha[2]`,
+    beta=exp(intercept_beta)*ss^`expo_beta[1]`*nt^`expo_beta[2]`,
+    p=1/(1+exp(-(es-alpha)/beta))
+         ) %>% 
+  group_by(es,ss,nt) %>% 
+  summarize(p=mean(p))
+
+pfs_h %>% 
+  ggplot()+
+  geom_tile(aes(x=nt,y=ss,fill=p))+
+  geom_contour(aes(x=nt,y=ss,z=p),breaks = 0.8,color='#D55E00',linewidth = 1)+
+  geom_contour(data=pfs_s,aes(x=nt,y=ss,z=p),breaks = 0.8,color='#0072B2',linewidth = 1)+
+  scale_fill_gradient(low = rgb(.9*.7,.4*.7,0), high = "white",limits=c(0,1),breaks=c(seq(0,1,.2)))+
+  guides(color='none',fill='none')+
+  labs(fill='Power')+
+  xlab('N trials')+
+  ylab('N participants')+
+  facet_wrap(es~.,ncol=5,scales='free')+
+  theme_minimal()+
+  theme(
+      text=element_text(size = 12),
+      strip.text = element_blank()  # Remove facet labels
+  )+
+  coord_cartesian(xlim=c(5,100),ylim=c(5,100))
+
+ggsave('Figure6Bsupp.tiff',units = 'cm',width = 16,height = 4)
+```
+
+
+```{r}
+draws_h<-hierarchical_slope_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='h')
+draws_s<-simple_test_slope_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='s')
+draws_u<-uncertainty_propagation_slope_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='u')
+
+draws<-full_join(draws_h,draws_s) %>% full_join(draws_u)
+
+pfs<-expand.grid(
+  .draw=1:max(draws$.draw),
+  es=seq(0,1,.01),
+  ss=unique(all_data$subjects),
+  nt=unique(all_data$trials)
+  ) %>% 
+  full_join(draws) %>% 
+  mutate(
+    alpha=exp(intercept_alpha)*ss^`expo_alpha[1]`*nt^`expo_alpha[2]`,
+    beta=exp(intercept_beta)*ss^`expo_beta[1]`*nt^`expo_beta[2]`,
+    p=1/(1+exp(-(es-alpha)/beta))
+         ) %>% 
+  group_by(es,ss,nt,test_type) %>% 
+  summarise(
+    lb=quantile(p,0.025),
+    ub=quantile(p,0.975)
+    ) %>% 
+  rename(subjects=ss,effect_size=es,trials=nt)
+
+all_data_slope<-
+  all_data %>% 
+  filter(parameter=='Slope') %>% 
+  full_join(pfs)
+
+all_data_slope %>% 
+  filter(test_type!='s') %>% 
+  ggplot()+
+  geom_hline(aes(yintercept = .9),linetype='dotted',color='grey')+
+  geom_hline(aes(yintercept = .8),linetype='dotted',color='grey')+
+  geom_hline(aes(yintercept = .05),linetype='dotted',color='grey')+
+  geom_ribbon(aes(x=effect_size,y=mean,ymin=lb,ymax=ub,fill=test_type),alpha=.5)+
+  geom_pointrange(aes(x=effect_size,y=mean,ymin=lower,ymax=upper,color=test_type),size=.01,position = position_dodge(width = .05))+
+  facet_wrap(trials~subjects, scales = 'free')+
+  xlab('Standardized effect size (Cohen´s d)')+
+  ylab('Statistical power')+
+  guides(color='none',fill='none')+
+  scale_fill_manual(labels=c('Hierarchical','Weighted t-test'),values = c('#D55E00','#0072B2'))+
+  scale_color_manual(labels=c('Hierarchical','Weighted t-test'),values = c('#D55E00','#0072B2'))+
+  scale_x_continuous(breaks=c(0,0.2,0.5,0.8))+
+  scale_y_continuous(breaks=c(0,.5,1))+
+  theme_classic()+
+    theme(
+      text=element_text(size = 12),
+      strip.text = element_blank()  # Remove facet labels
+  )+
+  coord_cartesian(ylim=c(0,1))
+ggsave('Figure7Asupp.tiff',units = 'cm',width = 16,height = 10)
+
+```
+
+
+
+```{r}
+draws_h<-hierarchical_slope_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='h')
+draws_s<-uncertainty_propagation_slope_fit$draws(variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),format = 'df') %>% mutate(test_type='s')
+
+
+pfs_h<-expand.grid(
+  .draw=1:max(draws_h$.draw),
+  es=seq(.4,1,.2),
+  ss=seq(2,110,2),
+  nt=seq(2,110,2)
+  ) %>% 
+  full_join(draws_h) %>% 
+  mutate(
+    alpha=exp(intercept_alpha)*ss^`expo_alpha[1]`*nt^`expo_alpha[2]`,
+    beta=exp(intercept_beta)*ss^`expo_beta[1]`*nt^`expo_beta[2]`,
+    p=1/(1+exp(-(es-alpha)/beta))
+         ) %>% 
+  group_by(es,ss,nt) %>% 
+  summarize(p=mean(p))
+
+pfs_s<-expand.grid(
+  .draw=1:max(draws_h$.draw),
+  es=seq(.4,1,.2),
+  ss=seq(2,110,2),
+  nt=seq(2,110,2)
+  ) %>% 
+  full_join(draws_s) %>% 
+  mutate(
+    alpha=exp(intercept_alpha)*ss^`expo_alpha[1]`*nt^`expo_alpha[2]`,
+    beta=exp(intercept_beta)*ss^`expo_beta[1]`*nt^`expo_beta[2]`,
+    p=1/(1+exp(-(es-alpha)/beta))
+         ) %>% 
+  group_by(es,ss,nt) %>% 
+  summarize(p=mean(p))
+
+pfs_h %>% 
+  ggplot()+
+  geom_tile(aes(x=nt,y=ss,fill=p))+
+  geom_contour(aes(x=nt,y=ss,z=p),breaks = 0.8,color='#D55E00',linewidth = 1)+
+  geom_contour(data=pfs_s,aes(x=nt,y=ss,z=p),breaks = 0.8,color='#0072B2',linewidth = 1)+
+  guides(color='none',fill='none')+
+  labs(fill='Power')+
+  xlab('N trials')+
+  ylab('N participants')+
+  facet_wrap(es~.,ncol=5,scales='free')+
+  scale_fill_gradient(low = rgb(.9*.7,.4*.7,0), high = "white",limits=c(0,1),breaks=c(seq(0,1,.2)))+
+  theme_minimal()+
+  theme(
+      text=element_text(size = 12),
+      strip.text = element_blank()  # Remove facet labels
+  )+
+  coord_cartesian(xlim=c(5,100),ylim=c(5,100))
+
+ggsave('Figure7Bsupp.tiff',units = 'cm',width = 16,height = 4)
+
+pfs_h %>% 
+  ggplot()+
+  geom_tile(aes(x=nt,y=ss,fill=p))+
+  geom_contour(aes(x=nt,y=ss,z=p),breaks = 0.8,color='#D55E00',linewidth = 1)+
+  geom_contour(data=pfs_s,aes(x=nt,y=ss,z=p),breaks = 0.8,color='#0072B2',linewidth = 1)+
+  labs(fill='Power')+
+  xlab('N trials')+
+  ylab('N participants')+
+  facet_wrap(es~.,ncol=5,scales='free')+
+  scale_fill_gradient(low = rgb(.9*.7,.4*.7,0), high = "white",limits=c(0,1),breaks=c(seq(0,1,.2)))+
+  theme_minimal()+
+  theme(
+      text=element_text(size = 12),
+      strip.text = element_blank()  # Remove facet labels
+  )+
+  coord_cartesian(xlim=c(5,100),ylim=c(5,100))
+
+ggsave('probability_colorbar_supp.tiff',units = 'cm',width = 16,height = 5)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+

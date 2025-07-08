@@ -1,0 +1,127 @@
+---
+title: "Figure5"
+output: html_document
+---
+
+```{r}
+
+fit<-readRDS('vmp_rrst_fit.RDS')
+
+
+library(mvtnorm)
+draws_hp<-
+  fit$draws(
+    variables = c('gm','tau_u','L_u','gm_alpha','tau_u_alpha'),
+    format = 'df'
+    ) %>% 
+  rename(
+    mu_beta=`gm[1]`,
+    mu_lambda=`gm[2]`,
+    mu_alpha=`gm_alpha`,
+    tau_beta=`tau_u[1]`,
+    tau_lambda=`tau_u[2]`,
+    tau_alpha=`tau_u_alpha`
+  )
+
+draws_p<-
+  fit$draws(variables = c('alpha','beta','lapse'),format='df') %>%
+  pivot_longer(
+    cols = matches("^(alpha|beta|lapse)\\[\\d+\\]$"),
+    names_to = c(".value", "idx"),
+    names_pattern = "(alpha|beta|lapse)\\[(\\d+)\\]"
+  ) %>% 
+  mutate(idx=as.numeric(idx))
+
+M=max(draws_hp$.draw)
+
+for(draw in 1:M){
+  omega<-
+    draws_p %>% 
+    filter(.draw==round(runif(1,1,))) %>% 
+    select(alpha,beta,lapse) %>% 
+    cor()
+  tau<-c(
+    draws_hp$tau_alpha[round(runif(1,1,M))],
+    draws_hp$tau_beta[round(runif(1,1,M))],
+    draws_hp$tau_lambda[round(runif(1,1,M))]
+    )
+  sigma<-diag(tau)%*%omega%*%diag(tau)
+  mu<-c(
+    draws_hp$mu_alpha[round(runif(1,1,M))],
+    draws_hp$mu_beta[round(runif(1,1,M))],
+    draws_hp$mu_lambda[round(runif(1,1,M))]
+    )
+
+  d<-rmvnorm(1,mu,sigma)
+  
+  draws_hp$alpha[draw]=exp(d[1])
+  draws_hp$beta[draw]=exp(d[2])
+  draws_hp$lambda[draw]=0.5/(1+exp(-d[3]))
+}
+
+g<-expand.grid(.draw=1:M,x=seq(0,17,.1))
+
+pfs_ppc<-
+  draws_hp %>% 
+  mutate(mu_lambda=0.5/(1+exp(-mu_lambda)),mu_beta=exp(mu_beta),mu_alpha=exp(mu_alpha)) %>% 
+  full_join(g) %>% 
+  mutate(
+    g=0.5+(0.5-mu_lambda)*(1-exp(-(x/mu_alpha)^mu_beta)),
+    s=0.5+(0.5-lambda)*(1-exp(-(x/alpha)^beta)),
+    ) %>% 
+  select(g,s,x,.draw) %>%  
+  group_by(x) %>% 
+  summarise(
+    s_lb_ci_95=quantile(s,0.025),
+    s_ub_ci_95=quantile(s,0.975),
+    s_lb_ci_90=quantile(s,0.05),
+    s_ub_ci_90=quantile(s,0.95),
+    s_lb_ci_80=quantile(s,0.1),
+    s_ub_ci_80=quantile(s,0.9),
+    s_lb_ci_60=quantile(s,0.20),
+    s_ub_ci_60=quantile(s,0.80),
+    m_s=quantile(s,0.5),
+    m_g=quantile(g,0.5),
+    lb_g=quantile(g,0.025),
+    ub_g=quantile(g,0.975)
+  ) %>%  
+  pivot_longer(
+    cols = matches("s_(lb|ub)_ci_\\d+"),  # Select only CI columns
+    names_to = c("bound", "ci"), 
+    names_pattern = "s_(lb|ub)_ci_(\\d+)", 
+    values_to = "value"
+  ) %>%
+  pivot_wider(
+    names_from = "bound",
+    values_from = "value",
+    names_prefix = "s_"
+  ) %>% 
+  pivot_longer(
+    cols = c(ub_g, m_g, lb_g),
+    names_to = "type",
+    names_pattern = "(.*)_g",  # Extract "ub", "m", or "lb"
+    values_to = "g"
+  )
+pfs_ppc$type<-ordered(pfs_ppc$type,levels=c('m','lb','ub'))
+
+
+pfs_ppc %>% 
+  ggplot()+
+  geom_ribbon(aes(x=100*x/17,ymin = s_lb,ymax=s_ub,alpha=ci),fill=rgb(118/255,42/255,131/255))+
+  geom_line(aes(x=100*x/17,y=g,linetype=type),linewidth=1,color=rgb(118/255,42/255,131/255))+
+  geom_vline(aes(xintercept = 0),linetype='dotted',color='grey',linewidth=1)+
+  scale_linetype_manual(labels=c('Posterior mean','95% CI',''),values = c('solid','dotted','dotted'))+  
+  scale_alpha_manual(labels=c('60% CI','80% CI','90% CI','95% CI'),values=c(.4,.3,.2,.1))+
+  guides(linetype = guide_legend(order=1, override.aes = list(linetype = c('solid','dotted','blank'))))+
+  labs(linetype='Group average',alpha='New participant')+
+  xlab('% obstruction')+
+  ylab('P(correct)')+
+  theme_minimal()+
+  coord_cartesian(xlim = c(0, 100))+
+  theme(
+    text=element_text(size = 12)
+    )+
+  ggtitle('Respiratory Resistance Senstitivity Task (N=267)')
+
+ggsave('Figure5.tiff',units = 'cm',width = 16,height = 8)
+```
