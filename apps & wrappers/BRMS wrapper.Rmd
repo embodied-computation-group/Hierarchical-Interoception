@@ -1,0 +1,929 @@
+---
+title: "BRMS demo"
+author: "AS Courtin & J Fischer Ehmsen"
+date: "2025-07-04"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+pacman::p_load(cmdstanr, tidyverse,posterior, bayesplot, tidybayes, rstan, brms,pracma)
+inv_logit<-function(x){
+  y=1/(1+exp(-x))
+  return(y)
+}
+```
+
+This markdown will guide you through the usage of BRMS to fit hierarchical psychometric functions to data generated with the Heart Rate Discrimination Task (HRDT) and the Respiratory Resistance Sensitivity Task (RRST). 
+Here we showcase how to analyze simple within subject experiments with a control and a treatment condition.
+This demo is a companion of our paper : INSERT_DOI
+
+# Analyzing Heart Rate Discrimination Task data
+
+## Data simulation (optional)
+
+To demonstrate how to run the hierarchical analysis in BRMS, we first need some data. Therefore, we simulate 50 subjects going through two conditions of a task similar to the HRDT, with the treatment condition leading to an increase of the threshold parameter alpha of 5 ΔBPM.
+
+*Note: To keep this simulation simple we do not use an adaptive method to optimize stimulus placement based on the responses of the participant. Instead, we simulate responses to 30 trials for each intensity within the pre-selected range (from -40 to +40* ΔBPM *in increments of 5). This leads to a rather large total number of trials but the information contained in the dataset is not necessarily much more than in a dataset 10 times smaller with adaptive stimulus placement.*
+
+In case you have real data you want to analyze, you don't need to go through this step. Instead, make sure you format your data in the same way we use here if you want to reemploy this code.
+
+```{r}
+seed = 12345
+set.seed(seed)
+
+# Design
+n_subj_HRDT <-50
+n_rep_HRDT<-30
+x_seq_HRDT <- rep(seq(-40, 40,5),n_rep_HRDT)
+
+# Group-level parameters
+mu_lambda_HRDT <- -4.2
+sd_lambda_HRDT <- 2
+
+mu_beta_HRDT <- -2.3
+sd_beta_HRDT <- 0.3
+
+mu_alpha_HRDT <- -8.6
+sd_alpha_HRDT <- 11.6
+
+mu_alpha_dif_HRDT = 5
+mu_beta_dif_HRDT = 0
+
+sd_beta_dif_HRDT <- sd_beta_HRDT * 0.5
+sd_alpha_dif_HRDT <- sd_alpha_HRDT * 0.5
+
+# Simulate subject-level parameters
+subject_base_HRDT <- 
+  tibble(
+    subj = 1:n_subj_HRDT,
+    alpha_base = rnorm(n_subj_HRDT, mu_alpha_HRDT, sd_alpha_HRDT),
+    lambda_base = rnorm(n_subj_HRDT, mu_lambda_HRDT, sd_lambda_HRDT),
+    beta_base = rnorm(n_subj_HRDT, mu_beta_HRDT, sd_beta_HRDT),
+    alpha_effect = rnorm(n_subj_HRDT, mu_alpha_dif_HRDT, sd_alpha_dif_HRDT),
+    lambda_effect = 0,
+    beta_effect = rnorm(n_subj_HRDT, mu_beta_dif_HRDT, sd_beta_dif_HRDT)
+  )
+
+# Expand to two conditions
+condition_data_HRDT <- 
+  subject_base_HRDT %>%
+  mutate(
+    lambda_condition1 = inv_logit(lambda_base) / 2,
+    lambda_condition2 = inv_logit(lambda_base + lambda_effect) / 2,
+
+    beta_condition1 = exp(beta_base),
+    beta_condition2 = exp(beta_base + beta_effect),
+
+    alpha_condition1 = alpha_base,
+    alpha_condition2 = alpha_base + alpha_effect
+  ) %>%
+  pivot_longer(
+    cols = starts_with(c("alpha_", "beta_", "lambda_")),
+    names_to = c(".value", "condition"),
+    names_pattern = "(.*)_condition(\\d)"
+  ) %>% 
+  drop_na() %>% 
+  mutate(condition = factor(condition, levels = c("1", "2"), labels = c("control", "treatment")))
+
+# Simulate trials
+sim_data_HRDT <- 
+  condition_data_HRDT %>%
+  group_by(subj, condition) %>%
+  mutate(x = list(x_seq_HRDT)) %>%
+  unnest(x) %>%
+  mutate(
+    theta = lambda + (1 - 2 * lambda) * (0.5 + 0.5 * pracma::erf(beta * (x - alpha) / sqrt(2))),
+    y = rbinom(n(), 1, theta)
+  ) %>%
+  group_by(subj,condition,x,theta) %>% 
+  summarise(n=sum(!is.na(y)),y=sum(y))
+```
+
+Before we proceed, let's plot the data of our (simulated) participants.
+
+```{r}
+sim_data_HRDT %>% 
+  ggplot()+
+  geom_point(aes(x = x, y = y/n, col = condition),alpha=.5)+ 
+  geom_line(aes(x = x, y = theta, col=condition))+
+  facet_wrap(~subj) + 
+  theme_classic()
+```
+
+## BRMS model definition
+
+Now in order to fit this data using BRMS we need to specify a model using *bf()*. In line with the paper, HRDT data is modelled by a Gaussian cumulative density function whose lower and upper asymtotes are set by a lapse rate lambda.
+
+$$
+\lambda + (1 - 2 \cdot \lambda) \cdot \left(0.5 + 0.5 \cdot \operatorname{erf}\left( \frac{{\beta}\cdot (x - \alpha)}{\sqrt{2}} \right) \right)
+$$
+
+In BRMS syntax, this becomes the following code:
+
+```{r}
+bff_HRDT = 
+  bf(
+    y|trials(n) ~ (inv_logit(lambda) / 2 + (1-inv_logit(lambda)) * (0.5+0.5 * erf(exp(beta)*(x-alpha)/(sqrt(2))))),
+    alpha ~ condition + (condition | subj),  
+    beta ~ condition + (condition | subj),  
+    lambda~ + (1 | subj),
+    nl = TRUE,
+    family=binomial(link="identity")
+)
+```
+
+We have specified random intercepts for all 3 parameters (threshold, slope and lambda) as well as main effects and random slopes for the effects of treatment on the threshold and slope.
+
+We do not specify an effect of treatment on the lapse rate as it is a nuisance parameter. However, we let it vary by subject.
+
+Two of the PF parameters need to be constrained because it would not make sense to let them vary from -Inf to +Inf. First, the slope parameter beta should be strictly positive to make sure the probability of response increases with the intensity of the stimulus. Second, the lapse rate parameter lambda should be constrained to the [0 0.5] range as it reflects the proportion of errors for extreme stimulus intensities. These constraints are enforced by transforms (*exp()* and *inv_logit()/2*) applied directly in the model equation.
+
+Next we need to specify the prior. Here we provide two options: the same weakly informative prior we used for the power analysis or the empirically informed prior we derived from fitting the VMP dataset. In general, we recommend using the empirically informed prior as it should better stabilize sampling and inference.
+
+```{r}
+empirically_informed_priors_HRDT = c(
+  set_prior("normal(-8.67,0.52*10)", class="b", nlpar="alpha", coef = "Intercept"),
+  set_prior("normal(0,11.23)", class="b", nlpar="alpha", coef = "conditiontreatment"),
+  set_prior("normal(-2.3,0.02*10)", class="b", nlpar="beta", coef = "Intercept"),
+  set_prior("normal(0,0.34)", class="b", nlpar="beta", coef = "conditiontreatment"),
+  set_prior("normal(-4.32,0.29)", class="b", nlpar="lambda"),
+
+  set_prior("normal(11.23,0.37*10)", class="sd", nlpar="alpha", group = "subj", lb = 0),
+  set_prior("normal(0.34,0.02*10)", class="sd", nlpar="beta", group = "subj", lb = 0),
+  set_prior("normal(1.96,0.19)", class="sd", nlpar="lambda", group = "subj", lb = 0)
+  )
+
+weakly_informative_priors_HRDT = c(
+  set_prior("normal(0,50)", class="b", nlpar="alpha", coef = "Intercept"),
+  set_prior("normal(0,10)", class="b", nlpar="alpha", coef = "conditiontreatment"),
+  set_prior("normal(-1.3,1.3)", class="b", nlpar="beta", coef = "Intercept"),
+  set_prior("normal(0,2)", class="b", nlpar="beta", coef = "conditiontreatment"),
+  set_prior("normal(-4,2)", class="b", nlpar="lambda"),
+
+  set_prior("normal(0,10)", class="sd", nlpar="alpha", group = "subj", lb = 0),
+  set_prior("normal(0,1.3)", class="sd", nlpar="beta", group = "subj", lb = 0),
+  set_prior("normal(0,2)", class="sd", nlpar="lambda", group = "subj", lb = 0)
+  )
+```
+
+## Model fitting
+
+We can now fit the model to our (simulated) data. Here we include code to fit it with both types of priors but we will focus on the model fit with the empirically informed priors in the rest of this demo.
+
+*Note: This might take a while. To reduce run time, consider commenting out one of the calls to the brm function.*
+
+```{r}
+fit_eip_HRDT <-
+  brm(
+    bff_HRDT,
+    data=sim_data_HRDT,
+    chains = 4,
+    cores = 4,
+    seed = seed,
+    backend = "cmdstan",
+    warmup=2000,
+    iter=4000,           
+    control=list(
+     adapt_delta=0.9,
+     max_treedepth = 10
+     ),
+    prior = empirically_informed_priors_HRDT
+    )
+
+fit_wip_HRDT <-
+  brm(
+    bff_HRDT,
+    data=sim_data_HRDT,
+    chains = 4,
+    cores = 4,
+    seed = seed,
+    backend = "cmdstan",
+    warmup=2000,
+    iter=4000,           
+    control=list(
+     adapt_delta=0.9,
+     max_treedepth = 10
+     ),
+    prior = weakly_informative_priors_HRDT
+    )
+```
+
+## Model diagnosing
+
+No warning is popping up to tell us something went wrong with the sampler (i.e. problems with max_treedepth, divergent transitions, or E-BFMI). We can therefore have a look at the model. In case such a warning appears on your screen when you are running this code or analyzing your own data please refer to BRMS/Stan documentation (BRMS will give you a link corresponding to the issue you are facing).
+
+```{r}
+fit_eip_HRDT
+```
+
+Before we interpret the results, we need to make sure the posterior has been properly sampled. To do so, we need to check that R-hat values are smaller or equal to 1.01 and effective sample sizes (ESS) values are 400 or more. Once again, the diagnostics are fine (again, if they aren't on your side, please refer to BRMS/Stan documentation).
+
+## Model interpretation
+
+Our model quantifies the effect of treatment on the threshold parameter alpha and the slope parameter beta of the psychometric function. To test whether there is such an effect, we can extract the posterior mean and 95% credible interval for the group-level difference between conditions and see if 0 is included in the interval. Alternatively, we can compute the posterior probability of this effect being larger than 0 and use this probability to compute a pseudo p-value for a two-sided test (i.e., H0 is that the effect is 0).
+
+We demonstrate these two equivalent approaches in the following code:
+
+```{r}
+summary_stats_HRDT<-
+  as_draws_df(fit_eip_HRDT) %>% 
+  select(b_alpha_conditiontreatment,,b_beta_conditiontreatment) %>% 
+  pivot_longer(everything()) %>% 
+  group_by(name) %>% 
+  summarise(
+    m=mean(value),
+    LB=quantile(value,0.025),
+    UB=quantile(value,0.975),
+    p_larger_than_0=mean(value>0),
+    pseudo_p_value=2*min(p_larger_than_0,1-p_larger_than_0)
+    )
+print(summary_stats_HRDT)
+```
+
+These results indicate a "significant" effect of treatment on the threshold parameter alpha but not on the slope parameter beta. This corresponds to the group mean differences that we used to simulate the data, which were 5 and 0 for alpha and beta respectively.
+
+## Visualization
+
+### Group mean differences
+
+We can then construct plots that show the posterior distribution for the group-level differences in threshold and slope. We will also add a linerange materializing the 95% CI.
+
+```{r}
+as_draws_df(fit_eip_HRDT) %>% 
+  select(b_alpha_conditiontreatment,b_beta_conditiontreatment) %>% 
+  pivot_longer(everything()) %>% 
+  full_join(summary_stats_HRDT) %>% 
+  mutate(name=factor(name,c('b_alpha_conditiontreatment','b_beta_conditiontreatment'),c('Threshold','Log(Slope)'))) %>% 
+  ggplot()+
+  geom_histogram(aes(x=value),color='black')+
+  geom_vline(aes(xintercept = 0),linetype='dotted',color='grey',linewidth=1)+
+  geom_pointrange(aes(x=m,xmin=LB,xmax=UB,y=-20,group = name),linewidth=1)+
+  labs(
+    title='HRDT parameters group mean differences between conditions',
+    x='Treatment-Control',
+    y='')+
+  facet_wrap(.~name,scale='free')+
+  theme_minimal()+
+  theme(
+    plot.title = element_text(face = "italic"),
+    text=element_text(size = 12)
+    )
+
+```
+
+### Group mean PF
+
+To get a better sense of what these values mean, we can also plot the group average PFs.
+
+```{r}
+# Get population-level draws
+draws <- as_draws_df(fit_eip_HRDT, variable = c(
+  "b_alpha_Intercept", "b_alpha_conditiontreatment",
+  "b_beta_Intercept", "b_beta_conditiontreatment",
+  "b_lambda_Intercept"
+)) %>%
+  mutate(
+    alpha_control = b_alpha_Intercept,
+    alpha_treatment = b_alpha_Intercept + b_alpha_conditiontreatment,
+    beta_control  = b_beta_Intercept,
+    beta_treatment = b_beta_Intercept + b_beta_conditiontreatment,
+    lambda = b_lambda_Intercept,
+    beta_control = exp(beta_control),
+    beta_treatment = exp(beta_treatment),
+    lapse = inv_logit(lambda)
+  )
+
+# Estimate and summarize PF values at different x
+x_seq <- seq(from = -40, to = 40, by = 0.2)
+g <- expand.grid(.draw = 1:nrow(draws), x = x_seq, KEEP.OUT.ATTRS = FALSE)
+draws$.draw <- 1:nrow(draws)
+
+draw_long <- g %>%
+  left_join(draws, by = ".draw") %>%
+  mutate(
+    p_control = lapse/2 + (1 - lapse) * (0.5 + 0.5 * erf(beta_control * (x - alpha_control) / sqrt(2))),
+    p_treatment = lapse/2 + (1 - lapse) * (0.5 + 0.5 * erf(beta_treatment * (x - alpha_treatment) / sqrt(2)))
+  ) %>%
+  pivot_longer(
+    cols = c(p_control, p_treatment),
+    names_to = "condition",
+    values_to = "p"
+  ) %>%
+  mutate(
+    condition = recode(condition, 
+                       "p_control" = "Control", 
+                       "p_treatment" = "Treatment")
+  )
+
+# Summarise to CIs
+pfs_ppc <- draw_long %>%
+  group_by(x, condition) %>%
+  summarise(
+    s_lb_ci_95 = quantile(p, 0.025),
+    s_ub_ci_95 = quantile(p, 0.975),
+    s_lb_ci_90 = quantile(p, 0.05),
+    s_ub_ci_90 = quantile(p, 0.95),
+    s_lb_ci_80 = quantile(p, 0.1),
+    s_ub_ci_80 = quantile(p, 0.9),
+    s_lb_ci_60 = quantile(p, 0.20),
+    s_ub_ci_60 = quantile(p, 0.80),
+    m = median(p),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = matches("s_(lb|ub)_ci_\\d+"),
+    names_to = c("bound", "ci"),
+    names_pattern = "s_(lb|ub)_ci_(\\d+)",
+    values_to = "value"
+  ) %>%
+  pivot_wider(names_from = "bound", values_from = "value", names_prefix = "s_")
+
+# Make plot
+pfs_ppc %>%
+  mutate(
+    condition = ordered(condition, levels = c("Control", "Treatment")),
+    ci = factor(ci, levels = c("60", "80", "90", "95"))
+  ) %>%
+  ggplot(aes(x = x)) +
+  geom_ribbon(aes(ymin = s_lb, ymax = s_ub, fill = condition, alpha = ci)) +
+  geom_line(aes(y = m, color = condition), linewidth = 1) +
+  geom_vline(xintercept = 0, linetype = "dotted", color = "grey", linewidth = 1) +
+  scale_fill_manual(values = c("#56b4e9", "#009E73")) +
+  scale_color_manual(values = c("#56b4e9", "#009E73")) +
+  scale_alpha_manual(
+    labels = c("60% CI", "80% CI", "90% CI", "95% CI"),
+    values = c(.4, .3, .2, .1)
+  ) +
+  guides(
+    fill = "none",
+    alpha = guide_legend(order = 2),
+    color = guide_legend(order = 1)
+  ) +
+  labs(
+    alpha = "Credible interval",
+    color = "Condition",
+    x = "BPM difference",
+    y = 'P(response = "faster")'
+  ) +
+  theme_minimal(base_size = 12) +
+  ggtitle("RRST group mean psychometric functions by condition")
+```
+### Individual participant PF
+
+Finally, we should also have a look at individual participants' psychometric functions to check they align with the data.
+```{r}
+pf <- function(x,alpha,beta,lambda){0.5 + (0.5-lambda) * (1-exp(-(x/alpha)^beta))}
+
+t<-data.frame(coef(fit_eip_RRST)$subj[1:n_subj_RRST,1,]) %>% 
+  mutate(subj = 1:n_subj_RRST) %>% 
+  mutate(
+    alpha_control = exp(alpha_Intercept),
+    alpha_treatment = exp(alpha_Intercept+alpha_conditiontreatment),    
+    beta_control = exp(beta_Intercept),
+    beta_treatment = exp(beta_Intercept+beta_conditiontreatment),
+    lambda = inv_logit(lambda_Intercept) / 2,
+  ) %>% 
+  select(alpha_control,alpha_treatment,beta_control,beta_treatment,lambda,subj) %>% 
+  pivot_longer(cols=!c(subj,lambda), names_to = c('parameter','condition'),names_sep = '_') %>% 
+  pivot_wider(names_from = parameter,values_from = value) %>% 
+  rowwise() %>% 
+  mutate(x = list(seq(1,17, by = 0.1))) %>% 
+  unnest() %>% 
+  mutate(p = pf(x,alpha,beta,lambda))
+
+t %>% 
+  filter(condition=='control') %>% 
+  ggplot()+
+  geom_line(aes(x = x, y = p),col="#56b4e9")+
+  geom_point(data = filter(sim_data_RRST,condition=='control'), aes(x = x, y = y/n,),alpha=.2,col="#56b4e9")+
+  facet_wrap(~subj)+
+  theme_classic()+
+  labs(
+    title='Individual participants data and best fitting psychometric functions',
+    subtitle = 'HRDT - Control',
+    y='P(response=faster)',
+    x='ΔBPM'
+    )
+t %>% 
+  filter(condition=='treatment') %>% 
+  ggplot()+
+  geom_line(aes(x = x, y = p),col="#009E73")+
+  geom_point(data = filter(sim_data_RRST,condition=='treatment'), aes(x = x, y = y/n,),alpha=.2,col="#009E73")+
+  facet_wrap(~subj)+
+  theme_classic()+
+  labs(
+    title='Individual participants data and best fitting psychometric functions',
+    subtitle = 'HRDT - Treatment',
+    y='P(response=faster)',
+    x='ΔBPM'
+    )
+```
+# Analyzing Respiratory Resistance Sensitivity Task data
+
+This section largely follows the same steps as the one of HRDT data analysis. The text and procedures are largely redundant on purpose.
+
+## Data simulation (optional)
+
+To demonstrate how to run the hierarchical analysis in BRMS, we first need some data. Therefore, we simulate 50 subjects going through two conditions of a task similar to the RRST, with the treatment condition leading to a decrease of the threshold parameter alpha of 1 arbitrary occlusion level.
+
+*Note: To keep this simulation simple we do not use an adaptive method to optimize stimulus placement based on the responses of the participant. Instead, we simulate response to 30 trials for each intensity within the pre-selected range (from 1 to 17 arbitrary obstruction levels in increments of 1). This leads to a rather large total number of trials but the information contained in the dataset is not necessarily much more than in a dataset 10 times smaller with adaptive stimulus placement.*
+
+In case you have real data you want to analyze, you don't need to go through this step. Instead, make sure you format your data in the same way we use here if you want to reemploy this code.
+
+```{r}
+#Set seed to ensure reproducibility
+seed = 12345
+set.seed(seed)
+
+# Design
+n_subj_RRST <- 50
+n_rep_RRST<-30
+x_seq_RRST <- rep(seq(1, 17,1),n_rep_RRST)
+
+# Group-level parameters
+mu_lambda_RRST <- -4.5
+sd_lambda_RRST <-2.53
+
+mu_beta_RRST <- 2.1
+sd_beta_RRST <- 0.9
+
+mu_alpha_RRST <- 2.6
+sd_alpha_RRST <- 0.1
+
+mu_alpha_dif_RRST = log(exp(mu_alpha_RRST)-1)-mu_alpha_RRST
+mu_beta_dif_RRST = 0
+
+sd_beta_dif_RRST <- sd_beta_RRST * 0.5
+sd_alpha_dif_RRST <- sd_alpha_RRST * 0.5
+
+# Subject-level coefficients
+subject_base_RRST <- tibble(
+  subj = 1:n_subj_RRST,
+  alpha_base = rnorm(n_subj_RRST, mu_alpha_RRST, sd_alpha_RRST),
+  lambda_base = rnorm(n_subj_RRST, mu_lambda_RRST, sd_lambda_RRST),
+  beta_base = rnorm(n_subj_RRST, mu_beta_RRST, sd_beta_RRST),
+  alpha_effect = rnorm(n_subj_RRST, mu_alpha_dif_RRST, sd_alpha_dif_RRST),
+  lambda_effect = 0,
+  beta_effect = rnorm(n_subj_RRST, mu_beta_dif_RRST, sd_beta_dif_RRST)
+)
+
+# Convert subject level coefficients to PF parameters
+condition_data_RRST <- 
+  subject_base_RRST %>%
+  mutate(
+    lambda_condition1 = inv_logit(lambda_base) / 2,
+    lambda_condition2 = inv_logit(lambda_base + lambda_effect) / 2,
+
+    beta_condition1 = exp(beta_base),
+    beta_condition2 = exp(beta_base + beta_effect),
+
+    alpha_condition1 = exp(alpha_base),
+    alpha_condition2 = exp(alpha_base + alpha_effect)
+  ) %>%
+  pivot_longer(
+    cols = starts_with(c("alpha_", "beta_", "lambda_")),
+    names_to = c(".value", "condition"),
+    names_pattern = "(.*)_condition(\\d)"
+  ) %>% drop_na() %>% 
+  mutate(condition = factor(condition, levels = c("1", "2"), labels = c("control", "treatment")))
+
+# Simulate trials
+sim_data_RRST <- 
+  condition_data_RRST %>%
+  group_by(subj, condition) %>%
+  mutate(x = list(x_seq_RRST)) %>%
+  unnest(x) %>%
+  mutate(
+    theta = 0.5 + (0.5 - lambda) * (1-exp(-(x/alpha)^beta)),
+    y = rbinom(n(), 1, theta)
+  ) %>%
+  group_by(subj,condition,x,theta) %>% 
+  summarise(n=sum(!is.na(y)),y=sum(y))
+```
+
+Now we can plot the data of our (simulated) participants.
+
+```{r}
+sim_data_RRST %>% 
+  ggplot()+
+  geom_point(aes(x = x, y = y/n, col = condition),alpha=.5)+ 
+  geom_line(aes(x = x, y = theta, col=condition))+
+  facet_wrap(~subj) + 
+  theme_classic()
+```
+
+## BRMS model definition
+
+Now in order to fit this data using BRMS we need to specify a model using *bf()*. In line with the paper, RRST data is modeled by a Weibull cumulative density function which has been modified to include a guess rate of 0.5 and a lapse rate lambda.
+
+$$
+\frac{1}{2} + \left(\frac{1}{2} - \lambda\right) \cdot \left(1 - e^{-\frac{x}{\alpha}^\beta} \right)
+$$
+
+In BRMS syntax, this becomes the following code:
+
+```{r}
+bff_RRST = 
+  bf(
+    y|trials(n) ~ (0.5 + (0.5-inv_logit(lambda)/2) * (1-exp(-(x/exp(alpha))^exp(beta)))),
+    alpha ~ condition + (condition | subj),
+    beta ~ condition + (condition | subj),
+    lambda~ + (1 | subj),
+    nl = TRUE,
+    family=binomial(link="identity")
+    )
+```
+
+We have specified random intercepts for all 3 parameters (threshold, slope and lambda) as well as main effects and random slopes for the effects of treatment on the threshold and slope.
+
+We do not specify an effect of treatment on the lapse rate as it is a nuisance parameter. However, we let it vary by subject.
+
+Two of the PF parameters need to be constrained because it would not make sense to let them vary from -Inf to +Inf. First, the slope parameter beta should be strictly positive to make sure the probability of response increases with the intensity of the stimulus. Second, the lapse rate parameter lambda should be constrained to the [0 0.5] range as it reflects the proportion of errors for extreme stimulus intensities. These constraints are enforced by transforms (*exp()* and *inv_logit()/2*) applied directly in the model equation.
+
+Next we need to specify the prior. Here we provide two options: a weakly informative prior similar to the one we used to fit the VMP dataset or the empirically informed prior we derived from fitting the VMP dataset. In general, we recommend using the empirically informed prior as it should better stabilize sampling and inference.
+
+```{r}
+empirically_informed_priors_RRST = c(
+  set_prior("normal(2.57,0.00823*10)", class="b", nlpar="alpha", coef = "Intercept"),
+  set_prior("normal(0,0.105)", class="b", nlpar="alpha", coef = "conditiontreatment"),
+  set_prior("normal(2.05,0.08*10)", class="b", nlpar="beta", coef = "Intercept"),
+  set_prior("normal(0,0.85)", class="b", nlpar="beta", coef = "conditiontreatment"),
+  set_prior("normal(-4.51,0.59)", class="b", nlpar="lambda"),
+
+  set_prior("normal(0.105,0.00746*10)", class="sd", nlpar="alpha", group = "subj", lb = 0),
+  set_prior("normal(0.85,0.07*10)", class="sd", nlpar="beta", group = "subj", lb = 0),
+  set_prior("normal(2.53,0.38)", class="sd", nlpar="lambda", group = "subj", lb = 0)
+  )
+
+weakly_informative_priors_RRST = c(
+  set_prior("normal(1.5,0.5)", class="b", nlpar="alpha", coef = "Intercept"),
+  set_prior("normal(0,0.5)", class="b", nlpar="alpha", coef = "conditiontreatment"),
+  set_prior("normal(2,1)", class="b", nlpar="beta", coef = "Intercept"),
+  set_prior("normal(0,1)", class="b", nlpar="beta", coef = "conditiontreatment"),
+  set_prior("normal(-4,2)", class="b", nlpar="lambda"),
+
+  set_prior("normal(0,0.5)", class="sd", nlpar="alpha", group = "subj", lb = 0),
+  set_prior("normal(0,1)", class="sd", nlpar="beta", group = "subj", lb = 0),
+  set_prior("normal(0,2)", class="sd", nlpar="lambda", group = "subj", lb = 0)
+  )
+```
+
+## Model fitting
+
+We can now fit the model to our (simulated) data. Here we include code to fit it with both types of priors but we will focus on the model fit with the empirically informed priors in the rest of this demo.
+
+*Note: This might take a while. To reduce run time, consider commenting out one of the calls to the brm function.*
+
+```{r}
+fit_eip_RRST <-
+  brm(
+    bff_RRST,
+    data=sim_data_RRST,
+    chains = 4,
+    cores = 4,
+    seed = seed,
+    backend = "cmdstan",
+    warmup=1000,
+    iter=2000,  
+    control=list(
+     adapt_delta=0.99,
+     max_treedepth = 10
+     ),
+    prior = empirically_informed_priors_RRST
+    )
+
+fit_wip_RRST <-
+  brm(
+    bff_RRST,
+    data=sim_data_RRST,
+    chains = 4,
+    cores = 4,
+    seed = seed,
+    backend = "cmdstan",
+    warmup=1000,
+    iter=2000,   
+    control=list(
+     adapt_delta=0.99,
+     max_treedepth = 10
+     ),
+    prior = weakly_informative_priors_RRST
+  )
+```
+
+## Model diagnosing
+
+No warning is popping up to tell us something went wrong with the sampler (i.e. problems with max_treedepth, divergent transitions, or E-BFMI). We can therefore have a look at the model. In case such a warning appears on your screen when you are running this code or analyzing your own data please refer to BRMS/Stan documentation (BRMS will give you a link corresponding to the issue you are facing).
+
+```{r}
+fit_eip_RRST
+```
+
+Before we interpret the results, we need to make sure the posterior has been properly sampled. To do so, we need to check that R-hat values are smaller or equal to 1.01 and effective sample sizes (ESS) values are 400 or more. Once again, the diagnostics are fine (again, if they aren't on your side, please refer to BRMS/Stan documentation).
+
+## Model interpretation
+
+Our model quantifies the effect of treatment on the threshold parameter alpha and the slope parameter beta of the psychometric function. To test whether there is such an effect, we can extract the posterior mean and 95% credible interval for the group-level difference between conditions and see if 0 is included in the interval. Alternatively, we can compute the posterior probability of this effect being larger than 0 and use this probability to compute a pseudo p-value for a two-sided test (i.e., H0 is that the effect is 0).
+
+We demonstrate these two equivalent approaches in the following code:
+
+```{r}
+summary_stats_RRST<-
+  as_draws_df(fit_eip_RRST) %>% 
+  select(b_alpha_conditiontreatment,b_beta_conditiontreatment) %>% 
+  pivot_longer(everything()) %>% 
+  group_by(name) %>% 
+  summarise(
+    m=mean(value),
+    LB=quantile(value,0.025),
+    UB=quantile(value,0.975),
+    p_larger_than_0=mean(value>0),
+    pseudo_p_value=2*min(p_larger_than_0,1-p_larger_than_0)
+    )
+print(summary_stats_RRST)
+```
+
+These results indicate a "significant" effect of treatment on the threshold parameter alpha but not on the slope parameter beta. This corresponds to the group mean differences that we used to simulate the data, which were -0.07 and 0 for alpha and beta respectively.
+
+Here we need to warn you about a specificity of non-symmetrical PFs such as the Weibull or the Gumbell. For these functions, the slope parameter beta is a shape parameter rather than a dispersion/precision parameter like in the case of the Gaussian CDF. As a consequence the actual dispersion/precision/slope of the PF is set by both the threshold parameter alpha and the "slope" parameter beta.
+
+This makes effects on parameter beta difficult to interpret. Instead of testing effects on beta, we therefore recommend to test effects on the spread of the function. This quantity reflects the true dispersion of the function and can be interpreted in terms of precision/reliability similarly to the slope parameter of a Gaussian PF. Here is it's equation for the spread of a Weibull function: 
+$$
+\alpha \cdot \left( \left( -log \left(1 - \frac{1 - \lambda - \delta - \gamma}{1 - \gamma - \lambda} \right) \right)^\frac{1}{\beta}-\left(-log\left(1 - \frac{\delta}{1 - \gamma - \lambda}\right)\right) ^ \frac{1}{\beta} \right)
+$$
+
+
+Knowing the guess rate gamma is 0.5 by design and making the assumptions no lapse occurs, we can simplify to: 
+$$
+\alpha \cdot \left( (-log(2\cdot\delta))^\frac{1}{\beta}-(-log(1 - 2 \cdot\delta)) ^ \frac{1}{\beta}\right)
+$$
+
+
+If we then set the spread defining threshold delta to 5%, we can further simplify the expression: 
+$$
+\alpha \cdot \left( (-log(0.1))^\frac{1}{\beta}-(-log(0.9)) ^ \frac{1}{\beta}\right)
+$$
+From these equations, it is easy to see that the spread scales linearly with the threshold parameter alpha. As a consequence, if alpha changes and beta is constant, the spread changes. In some cases, changes in beta do not reflect a change of spread but rather a compensation of the effect of alpha on the spread.
+
+In the case of our simulated data, alpha changes but not beta and the spread is therefore different between the conditions. We can compute the spread difference based on the parameters used to simulate the data:
+
+```{r}
+alpha_control=exp(mu_alpha_RRST)
+alpha_treatment=exp(mu_alpha_RRST+mu_alpha_dif_RRST)
+
+beta_control=exp(mu_beta_RRST)
+beta_treatment=exp(mu_beta_RRST+mu_beta_dif_RRST)
+
+spread_control=alpha_control*((-log(.1))^(1/beta_control)-(-log(.9))^(1/beta_control))
+spread_treatment=alpha_treatment*((-log(.1))^(1/beta_treatment)-(-log(.9))^(1/beta_treatment))
+
+true_spread_difference=spread_treatment-spread_control
+print(true_spread_difference)
+```
+
+We can also use the posterior samples from our model to estimate the spread difference and assess if it is "significant". Here is some code to compute the posterior mean spread and corresponding 95% CI as well as the posterior probability of the spread difference being larger than 0 and a pseudo p-value for a two-sided test (i.e., H0 is that the effect is 0).
+
+```{r}
+spreads<-
+  as_draws_df(fit_eip_RRST) %>% 
+  mutate(
+    alpha_control=exp(b_alpha_Intercept),
+    alpha_treatment=exp(b_alpha_Intercept+b_alpha_conditiontreatment),   
+    beta_control=exp(b_beta_Intercept),
+    beta_treatment=exp(b_beta_Intercept+b_beta_conditiontreatment)
+    ) %>% 
+  select(alpha_control,alpha_treatment,beta_control,beta_treatment) %>% 
+  pivot_longer(
+    cols = everything(),
+    names_to = c(".value", "condition"),
+    names_sep = "_"
+  ) %>% 
+  mutate(spread=alpha*((-log(0.1))^(1/beta)-(-log(0.9))^(1/beta)))
+         
+spreads_stats<-
+  spreads %>%   
+  group_by(condition) %>% 
+  summarise(
+    m=mean(spread),
+    LB=quantile(spread,0.025),
+    UB=quantile(spread,0.975)
+    )
+
+spread_diffs<-
+  spreads %>% 
+  select(condition,spread) %>% 
+  mutate(draw=sort(rep(1:4000,2))) %>% 
+  pivot_wider(names_from = condition,values_from = spread) %>% 
+  mutate(difference=treatment-control)
+spread_diffs_stats<-
+  spread_diffs %>% 
+  summarise(
+    m=mean(difference),
+    LB=quantile(difference,0.025),
+    UB=quantile(difference,0.975),
+    p_larger_than_0=mean(difference>0),
+    pseudo_p_value=2*min(p_larger_than_0,1-p_larger_than_0)
+    )
+print(spread_diffs_stats)
+```
+
+The estimate is not far off but the uncertainty is too high to declare a "significant" difference of spread.
+
+## Visualization
+
+### Group mean differences
+
+We can then construct plots that show the posterior distribution for the group-level differences in threshold and spread. We will also add a linerange materializing the 95% CI.
+
+```{r}
+spread_differences_long<-
+  spread_diffs %>% 
+  select(difference) %>% 
+  rename(value=difference) %>% 
+  mutate(
+    name='spread_difference',
+    m=spread_diffs_stats$m,
+    LB=spread_diffs_stats$LB,
+    UB=spread_diffs_stats$UB,
+    p_larger_than_0=spread_diffs_stats$p_larger_than_0,
+    pseudo_p_value=spread_diffs_stats$pseudo_p_value
+    ) 
+as_draws_df(fit_eip_RRST) %>% 
+  pivot_longer(everything()) %>% 
+  full_join(summary_stats_RRST) %>% 
+  filter(name=='b_alpha_conditiontreatment') %>% 
+  full_join(spread_differences_long) %>% 
+  mutate(name=factor(name,c('b_alpha_conditiontreatment','spread_difference'),c('Threshold','Spread'))) %>% 
+  ggplot()+
+  geom_histogram(aes(x=value),color='black')+
+  geom_vline(aes(xintercept = 0),linetype='dotted',color='grey',linewidth=1)+
+  geom_pointrange(aes(x=m,xmin=LB,xmax=UB,y=-10,group = name))+
+  labs(
+    title='RRST parameters group mean differences between conditions',
+    x='Treatment-Control',
+    y=''
+    )+
+  facet_wrap(.~name,scale='free')+
+  theme_minimal()+
+  theme(
+    plot.title = element_text(face = "italic"),
+    text=element_text(size = 12)
+    )
+
+```
+
+### Group mean PF
+
+To get a better sense of what these values mean, we can also plot the group average PFs.
+
+```{r}
+# Get population-level draws
+draws <- as_draws_df(fit_eip_RRST, variable = c(
+  "b_alpha_Intercept", "b_alpha_conditiontreatment",
+  "b_beta_Intercept", "b_beta_conditiontreatment",
+  "b_lambda_Intercept"
+)) %>%
+  mutate(
+    alpha_control = exp(b_alpha_Intercept),
+    alpha_treatment = exp(b_alpha_Intercept + b_alpha_conditiontreatment),
+    beta_control  = b_beta_Intercept,
+    beta_treatment = b_beta_Intercept + b_beta_conditiontreatment,
+    lambda = b_lambda_Intercept,
+    beta_control = exp(beta_control),
+    beta_treatment = exp(beta_treatment),
+    lapse = inv_logit(lambda)
+  )
+
+# Estimate and summarize PF values at different x
+x_seq <- seq(from = 1, to = 17, by = 0.2)
+g <- expand.grid(.draw = 1:nrow(draws), x = x_seq, KEEP.OUT.ATTRS = FALSE)
+draws$.draw <- 1:nrow(draws)
+
+draw_long <- g %>%
+  left_join(draws, by = ".draw") %>%
+  mutate(
+    p_control = 0.5 + (0.5 - lapse) * (1-exp(-(x/alpha_control)^beta_control)),
+    p_treatment = 0.5 + (0.5 - lapse) * (1-exp(-(x/alpha_treatment)^beta_treatment)),
+  ) %>%
+  pivot_longer(
+    cols = c(p_control, p_treatment),
+    names_to = "condition",
+    values_to = "p"
+  ) %>%
+  mutate(
+    condition = recode(condition, 
+                       "p_control" = "Control", 
+                       "p_treatment" = "Treatment")
+  )
+
+# Summarise to CIs
+pfs_ppc <- draw_long %>%
+  group_by(x, condition) %>%
+  summarise(
+    s_lb_ci_95 = quantile(p, 0.025),
+    s_ub_ci_95 = quantile(p, 0.975),
+    s_lb_ci_90 = quantile(p, 0.05),
+    s_ub_ci_90 = quantile(p, 0.95),
+    s_lb_ci_80 = quantile(p, 0.1),
+    s_ub_ci_80 = quantile(p, 0.9),
+    s_lb_ci_60 = quantile(p, 0.20),
+    s_ub_ci_60 = quantile(p, 0.80),
+    m = median(p),
+    .groups = "drop"
+  ) %>%
+  pivot_longer(
+    cols = matches("s_(lb|ub)_ci_\\d+"),
+    names_to = c("bound", "ci"),
+    names_pattern = "s_(lb|ub)_ci_(\\d+)",
+    values_to = "value"
+  ) %>%
+  pivot_wider(names_from = "bound", values_from = "value", names_prefix = "s_")
+
+# Make plot
+pfs_ppc %>%
+  mutate(
+    condition = ordered(condition, levels = c("Control", "Treatment")),
+    ci = factor(ci, levels = c("60", "80", "90", "95"))
+  ) %>%
+  ggplot(aes(x = 100*x/17)) +
+  geom_ribbon(aes(ymin = s_lb, ymax = s_ub, fill = condition, alpha = ci)) +
+  geom_line(aes(y = m, color = condition), linewidth = 1) +
+  geom_vline(xintercept = 0, linetype = "dotted", color = "grey", linewidth = 1) +
+  scale_fill_manual(values = c("#56b4e9", "#009E73")) +
+  scale_color_manual(values = c("#56b4e9", "#009E73")) +
+  scale_alpha_manual(
+    labels = c("60% CI", "80% CI", "90% CI", "95% CI"),
+    values = c(.4, .3, .2, .1)
+  ) +
+  guides(
+    fill = "none",
+    alpha = guide_legend(order = 2),
+    color = guide_legend(order = 1)
+  ) +
+  labs(
+    alpha = "Credible interval",
+    color = "Condition",
+    x = "% obstruction",
+    y = 'P(correct)'
+  ) +
+  theme_minimal(base_size = 12) +
+  ggtitle("RRST group mean psychometric functions by condition")
+```
+### Individual participant PF
+
+Finally, we should also have a look at individual participants' psychometric functions to check they align with the data.
+```{r}
+pf <- function(x,alpha,beta,lambda){inv_logit(lambda) / 2 + (1-inv_logit(lambda)) * (0.5+0.5 * erf(exp(beta)*(x-alpha)/(sqrt(2))))}
+
+t<-data.frame(coef(fit_eip_HRDT)$subj[1:n_subj_HRDT,1,]) %>% 
+  mutate(subj = 1:n_subj_HRDT) %>% 
+  mutate(
+    alpha_control = exp(alpha_Intercept),
+    alpha_treatment = exp(alpha_Intercept+alpha_conditiontreatment),    
+    beta_control = exp(beta_Intercept),
+    beta_treatment = exp(beta_Intercept+beta_conditiontreatment),
+    lambda = inv_logit(lambda_Intercept) / 2,
+  ) %>% 
+  select(alpha_control,alpha_treatment,beta_control,beta_treatment,lambda,subj) %>% 
+  pivot_longer(cols=!c(subj,lambda), names_to = c('parameter','condition'),names_sep = '_') %>% 
+  pivot_wider(names_from = parameter,values_from = value) %>% 
+  rowwise() %>% 
+  mutate(x = list(seq(1,17, by = 0.1))) %>% 
+  unnest() %>% 
+  mutate(p = pf(x,alpha,beta,lambda))
+
+t %>% 
+  filter(condition=='control') %>% 
+  ggplot()+
+  geom_line(aes(x = x, y = p),col="#56b4e9")+
+  geom_point(data = filter(sim_data_HRDT,condition=='control'), aes(x = x, y = y/n,),alpha=.2,col="#56b4e9")+
+  facet_wrap(~subj)+
+  theme_classic()+
+  labs(
+    title='Individual participants data and best fitting psychometric functions',
+    subtitle = 'RRST - Control',
+    y='P(correct)',
+    x='Occlusion level (0-17)'
+    )
+t %>% 
+  filter(condition=='treatment') %>% 
+  ggplot()+
+  geom_line(aes(x = x, y = p),col="#009E73")+
+  geom_point(data = filter(sim_data_HRDT,condition=='treatment'), aes(x = x, y = y/n,),alpha=.2,col="#009E73")+
+  facet_wrap(~subj)+
+  theme_classic()+
+  labs(
+    title='Individual participants data and best fitting psychometric functions',
+    subtitle = 'RRST - Treatment',
+    y='P(correct)',
+    x='Occlusion level (0-17)'
+    )
+```
+
+
+
+
+
+
+
+
