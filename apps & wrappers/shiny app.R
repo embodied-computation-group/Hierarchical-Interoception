@@ -44,7 +44,14 @@ ui <- navbarPage("Bayesian Power Simulation Explorer",
                             sidebarPanel(
                               selectInput("parameter2", "Parameter:", choices = c("Threshold", "Slope")),
                               sliderInput("subjects2", "N subjects:", min = 5, max = 150, value = 30, step = 1),
-                              sliderInput("trials2", "N trials:", min = 10, max = 150, value = 30, step = 1)
+                              sliderInput("trials2", "N trials:", min = 10, max = 150, value = 30, step = 1),
+                              radioButtons(
+                                inputId = "powerlevel2",
+                                label = "Desired power level:",
+                                choices = c("0.80" = 0.8, "0.90" = 0.9, "0.95" = 0.95),
+                                selected = 0.8,
+                                inline = TRUE
+                              )
                             ),
                             mainPanel(
                               plotOutput("esPowerPlot")
@@ -85,12 +92,12 @@ server <- function(input, output, session) {
       geom_contour(aes(x = nt, y = ss, z = p, colour = test_type),
                    breaks = power_target, linewidth = 1, linetype = 'dashed') +
       theme_minimal() +
-      labs(x = "N trials", y = "N participants", fill = "Power") +
+      labs(x = "N trials", y = "N participants", fill = "Power",colour='Test type') +
       coord_cartesian(xlim = c(input$trials[1], input$trials[2]),
                       ylim = c(input$subjects[1], input$subjects[2])) +
       scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) +
       scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) +
-      theme(strip.text = element_text(size = 16))
+      theme(text = element_text(size = 16))
   })
   
   # --- Page 2 Plot: Effect Size vs. Power ---
@@ -251,6 +258,7 @@ server <- function(input, output, session) {
       
     }
     
+    desired_power=input$powerlevel2
     
     df %>%
       mutate(test_type = recode(test_type,
@@ -263,12 +271,12 @@ server <- function(input, output, session) {
       geom_ribbon(aes(ymin = ci90_lower,ymax = ci90_upper), alpha = 0.2)+
       geom_ribbon(aes(ymin = ci80_lower,ymax = ci80_upper), alpha = 0.3)+
       theme_minimal() +
-      labs(x = "Effect size (d)", y = "Power") +
+      labs(x = "Effect size (d)", y = "Power",colour='Test type',fill='Test type') +
       scale_y_continuous(limits = c(0, 1)) +
       scale_x_continuous(limits = c(0, 1)) +
-      theme(strip.text = element_text(size = 16))+
+      theme(text = element_text(size = 16))+
       geom_hline(yintercept = 0.05, linetype = 2)+
-      geom_hline(yintercept = 0.8, linetype = 2)
+      geom_hline(yintercept = as.numeric(desired_power), linetype = 2)
   })
   
   
