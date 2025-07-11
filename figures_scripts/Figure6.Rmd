@@ -4,20 +4,26 @@ output: html_document
 ---
 
 ```{r}
+library(tidyverse)
 
-hierarchical_slope_fit <- readRDS("~/HI/power_analysis_hierarchical_slope_fit_exp.rds")
-hierarchical_threshold_fit <- readRDS("~/HI/power_analysis_hierarchical_threshold_fit_exp.rds")
-simple_test_slope_fit <- readRDS("~/HI/power_analysis_simple_test_slope_fit_exp.rds")
-simple_test_threshold_fit <- readRDS("~/HI/power_analysis_simple_test_threshold_fit_exp.rds")
-uncertainty_propagation_slope_fit <- readRDS("~/HI/power_analysis_uncertainty_propagation_test_slope_fit_exp.rds")
-uncertainty_propagation_threshold_fit <- readRDS("~/HI/power_analysis_uncertainty_propagation_test_threshold_fit_exp.rds")
+hierarchical_slope_fit <- readRDS(here::here("results","power analysis","Extracted","Hierarchical","slopemodel.rds"))
+hierarchical_threshold_fit <- readRDS(here::here("results","power analysis","Extracted","Hierarchical","thresholdmodel.rds"))
 
-hierarchical_data <- read_csv("power_analysis_hierarchical_data.csv") %>% 
+simple_test_slope_fit <- readRDS(here::here("results","power analysis","Extracted","Psi","slopemodel.rds"))
+simple_test_threshold_fit <- readRDS(here::here("results","power analysis","Extracted","Psi","thresholdmodel.rds"))
+
+uncertainty_propagation_slope_fit <- readRDS(here::here("results","power analysis","Extracted","Psi","slopemodel.rds"))
+uncertainty_propagation_threshold_fit <- readRDS(here::here("results","power analysis","Extracted","Psi","thresholdmodel.rds"))
+
+hierarchical_data <- read_csv(here::here("results","power analysis","Extracted","Hierarchical","df.csv")) %>% 
   mutate(test_type='h')
-simple_test_data <- read_csv("power_analysis_simple_test_data.csv") %>% 
+
+simple_test_data <- read_csv(here::here("results","power analysis","Extracted","Psi","df.csv")) %>% 
   mutate(test_type='s')
-uncertainty_propagation_data <- read_csv("power_analysis_uncertainty_propagation_test_data.csv") %>% 
+
+uncertainty_propagation_data <- read_csv(here::here("results","power analysis","Extracted","Psi_un","df.csv")) %>% 
   mutate(test_type='u')
+
 all_data<-
   full_join(hierarchical_data,uncertainty_propagation_data) %>% 
   full_join(simple_test_data)
@@ -55,6 +61,9 @@ simple_test_slope_fit$draws(
     lb=round(quantile(value,0.025),2),
     ub=round(quantile(value,0.975),2)
     )
+
+# Table
+
 simple_test_threshold_fit$draws(
   variables = c('expo_alpha','expo_beta','intercept_alpha','intercept_beta'),
   format = 'df'

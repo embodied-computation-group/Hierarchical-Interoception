@@ -4,9 +4,9 @@ output: html_document
 ---
 
 ```{r}
-rm(list=ls())
-fit<-readRDS('vmp_hrd_fit.RDS')
-fit
+
+fit<-readRDS(here::here("results","Fit population","Extero_Normal_mm.RDS"))
+
 fit$draws(variables = c('gm[2]','gm[4]'), format = 'df') %>% 
   rename(
     delta_beta=`gm[2]`,

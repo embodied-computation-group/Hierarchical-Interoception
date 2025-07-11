@@ -5,7 +5,7 @@ output: html_document
 
 ```{r}
 
-fit<-readRDS('vmp_rrst_fit.RDS')
+fit <- readRDS(here::here("results","Fit population","RRST_weibull_priors.RDS"))
 
 
 library(mvtnorm)
