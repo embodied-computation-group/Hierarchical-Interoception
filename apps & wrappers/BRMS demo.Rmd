@@ -233,7 +233,17 @@ We demonstrate these two equivalent approaches in the following code:
 ```{r}
 summary_stats_HRDT<-
   as_draws_df(fit_eip_HRDT) %>% 
-  select(b_alpha_conditiontreatment,,b_beta_conditiontreatment) %>% 
+  select(b_alpha_Intercept,b_beta_Intercept,b_alpha_conditiontreatment,b_beta_conditiontreatment) %>% 
+  mutate(
+    mean_alpha_treatment=b_alpha_Intercept+b_alpha_conditiontreatment,
+    mean_beta_treatment=b_beta_Intercept+b_beta_conditiontreatment
+  ) %>% 
+  rename(
+    mean_alpha_control=b_alpha_Intercept,
+    mean_beta_control=b_beta_Intercept,
+    mean_alpha_diff=b_alpha_conditiontreatment,
+    mean_beta_diff=b_beta_conditiontreatment
+  ) %>% 
   pivot_longer(everything()) %>% 
   group_by(name) %>% 
   summarise(
@@ -245,8 +255,39 @@ summary_stats_HRDT<-
     )
 print(summary_stats_HRDT)
 ```
-
-These results indicate a "significant" effect of treatment on the threshold parameter alpha but not on the slope parameter beta. This corresponds to the group mean differences that we used to simulate the data, which were 5 and 0 for alpha and beta respectively.
+## Reporting the results
+If we use the conventional 5% threshold, these results indicate a significant effect of treatment on the threshold parameter alpha but not on the slope parameter beta. This corresponds to the group mean differences that we used to simulate the data, which were 5 and 0 for alpha and beta respectively.
+We could write something like this to report these results in a paper:
+```{r}
+sprintf(
+  "Treatment led to a significant increase of the threshold (mean difference [95%% CI]: %0.2f [%0.2f ; %0.2f] ΔBPM, pseudo p-value:  %0.3f), corresponding to a reduced tendency to underestimate one's heart rate (mean threshold for control: %0.2f [%0.2f ; %0.2f]; mean threshold for treatment: %0.2f [%0.2f ; %0.2f]). Conversely, the slope appeared unaffected by treatment (mean log(slope) difference: %0.2f [%0.2f ; %0.2f], pseudo p-value:  %0.3f), indicating similar precision of judgements made under treatment or control (mean slope for control: %0.2f [%0.2f ; %0.2f]; mean slope for treatment: %0.2f [%0.2f ; %0.2f]).",
+  summary_stats_HRDT$m[2],
+  summary_stats_HRDT$LB[2],
+  summary_stats_HRDT$UB[2],
+  summary_stats_HRDT$pseudo_p_value[2],
+  
+  summary_stats_HRDT$m[1],
+  summary_stats_HRDT$LB[1],
+  summary_stats_HRDT$UB[1],
+  
+  summary_stats_HRDT$m[3],
+  summary_stats_HRDT$LB[3],
+  summary_stats_HRDT$UB[3],
+  
+  summary_stats_HRDT$m[5],
+  summary_stats_HRDT$LB[5],
+  summary_stats_HRDT$UB[5],
+  summary_stats_HRDT$pseudo_p_value[5],
+  
+  exp(summary_stats_HRDT$m[4]),
+  exp(summary_stats_HRDT$LB[4]),
+  exp(summary_stats_HRDT$UB[4]),
+  
+  exp(summary_stats_HRDT$m[6]),
+  exp(summary_stats_HRDT$LB[6]),
+  exp(summary_stats_HRDT$UB[6])
+  )
+```
 
 ## Visualization
 
@@ -641,7 +682,17 @@ We demonstrate these two equivalent approaches in the following code:
 ```{r}
 summary_stats_RRST<-
   as_draws_df(fit_eip_RRST) %>% 
-  select(b_alpha_conditiontreatment,b_beta_conditiontreatment) %>% 
+  select(b_alpha_Intercept,b_beta_Intercept,b_alpha_conditiontreatment,b_beta_conditiontreatment) %>% 
+  mutate(
+    mean_alpha_treatment=b_alpha_Intercept+b_alpha_conditiontreatment,
+    mean_beta_treatment=b_beta_Intercept+b_beta_conditiontreatment
+  ) %>% 
+  rename(
+    mean_alpha_control=b_alpha_Intercept,
+    mean_beta_control=b_beta_Intercept,
+    mean_alpha_diff=b_alpha_conditiontreatment,
+    mean_beta_diff=b_beta_conditiontreatment
+  ) %>% 
   pivot_longer(everything()) %>% 
   group_by(name) %>% 
   summarise(
@@ -654,7 +705,7 @@ summary_stats_RRST<-
 print(summary_stats_RRST)
 ```
 
-These results indicate a "significant" effect of treatment on the threshold parameter alpha but not on the slope parameter beta. This corresponds to the group mean differences that we used to simulate the data, which were -0.07 and 0 for alpha and beta respectively.
+If we use the conventional 5% threshold, these results indicate a significant effect of treatment on the threshold parameter alpha but not on the slope parameter beta. This corresponds to the group mean differences that we used to simulate the data, which were -0.07 and 0 for alpha and beta respectively.
 
 Here we need to warn you about a specificity of non-symmetrical PFs such as the Weibull or the Gumbell. For these functions, the slope parameter beta is a shape parameter rather than a dispersion/precision parameter like in the case of the Gaussian CDF. As a consequence the actual dispersion/precision/slope of the PF is set by both the threshold parameter alpha and the "slope" parameter beta.
 
@@ -739,9 +790,42 @@ print(spread_diffs_stats)
 ```
 
 Despite having no significant effect of treatment on parameter beta, we have a significant reduction of the spread by treatment.
-This corresponds to the parameters with simulations.
+This corresponds to the parameters we usd for simulations.
 When we plot the group mean PFs later, we will see that, indeed, the treatment PF is steeper than the control one, indexing more precise or reliable perception under the treatment condition. 
 
+## Reporting the results
+
+We could write something like this to report these results in a paper:
+```{r}
+sprintf(
+  "Treatment led to a significant decrease of the threshold (mean [95%% CI] log(threshold) difference: %0.2f [%0.2f ; %0.2f] arbitrary occlusion units, pseudo p-value:  %0.3f), indexing increased sensitivity to occlusion under treatment (mean threshold for control: %0.2f%% [%0.2f%% ; %0.2f%%] occlusion; for treatment: %0.2f%% [%0.2f%% ; %0.2f%%]). Additionnaly, the spread of the function was also reduced (mean spread difference: %0.2f%% [%0.2f%% ; %0.2f%%] occlusion, pseudo p-value:  %0.3f), indicating increased precision of judgements made under treatment compared to control (mean spread for control: %0.2f%% [%0.2f%% ; %0.2f%%]; for treatment: %0.2f%% [%0.2f%% ; %0.2f%%]).",
+  summary_stats_RRST$m[2],
+  summary_stats_RRST$LB[2],
+  summary_stats_RRST$UB[2],
+  summary_stats_RRST$pseudo_p_value[2],
+  
+  100*exp(summary_stats_RRST$m[1])/17,
+  100*exp(summary_stats_RRST$LB[1])/17,
+  100*exp(summary_stats_RRST$UB[1])/17,
+  
+  100*exp(summary_stats_RRST$m[3])/17,
+  100*exp(summary_stats_RRST$LB[3])/17,
+  100*exp(summary_stats_RRST$UB[3])/17,
+  
+  100*spread_diffs_stats$m/17,
+  100*spread_diffs_stats$LB/17,
+  100*spread_diffs_stats$UB/17,
+  spread_diffs_stats$pseudo_p_value,
+  
+  100*spreads_stats$m[1]/17,
+  100*spreads_stats$LB[1]/17,
+  100*spreads_stats$UB[1]/17,
+  
+  100*spreads_stats$m[2]/17,
+  100*spreads_stats$LB[2]/17,
+  100*spreads_stats$UB[2]/17
+  )
+```
 ## Visualization
 
 ### Group mean differences
@@ -766,7 +850,7 @@ as_draws_df(fit_eip_RRST) %>%
   full_join(summary_stats_RRST) %>% 
   filter(name=='b_alpha_conditiontreatment') %>% 
   full_join(spread_differences_long) %>% 
-  mutate(name=factor(name,c('b_alpha_conditiontreatment','spread_difference'),c('Threshold','Spread'))) %>% 
+  mutate(name=factor(name,c('b_alpha_conditiontreatment','spread_difference'),c('Log(Threshold)','Spread'))) %>% 
   ggplot()+
   geom_histogram(aes(x=value),color='black')+
   geom_vline(aes(xintercept = 0),linetype='dotted',color='grey',linewidth=1)+
