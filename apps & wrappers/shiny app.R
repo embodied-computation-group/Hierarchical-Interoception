@@ -22,8 +22,8 @@ ui <- navbarPage("Bayesian Power Simulation Explorer",
                             sidebarPanel(
                               selectInput("parameter", "Parameter:", choices = c("Threshold", "Slope")),
                               numericInput("es", "Effect size (d):", value = 0.5, min = 0, max = 1, step = 0.01),
-                              sliderInput("subjects", "N subjects:", min = 5, max = 150, value = c(10, 60), step = 1),
-                              sliderInput("trials", "N trials:", min = 10, max = 150, value = c(10, 60), step = 1),
+                              sliderInput("subjects", "N subjects:", min = 15, max = 120, value = c(10, 60), step = 1),
+                              sliderInput("trials", "N trials:", min = 30, max = 90, value = c(10, 60), step = 1),
                               radioButtons(
                                 inputId = "powerlevel",
                                 label = "Desired power level:",
@@ -33,7 +33,8 @@ ui <- navbarPage("Bayesian Power Simulation Explorer",
                               )
                             ),
                             mainPanel(
-                              plotOutput("gridPlot")
+                              plotOutput("gridPlot"),
+                              p(em('Disclaimer: power lines may fall out of the displayed range. If none is visible, try changing the values'))
                             )
                           )
                  ),
@@ -43,8 +44,8 @@ ui <- navbarPage("Bayesian Power Simulation Explorer",
                           sidebarLayout(
                             sidebarPanel(
                               selectInput("parameter2", "Parameter:", choices = c("Threshold", "Slope")),
-                              sliderInput("subjects2", "N subjects:", min = 5, max = 150, value = 30, step = 1),
-                              sliderInput("trials2", "N trials:", min = 10, max = 150, value = 30, step = 1),
+                              sliderInput("subjects2", "N subjects:", min = 15, max = 120, value = 30, step = 1),
+                              sliderInput("trials2", "N trials:", min = 30, max = 90, value = 30, step = 1),
                               radioButtons(
                                 inputId = "powerlevel2",
                                 label = "Desired power level:",
@@ -63,8 +64,8 @@ ui <- navbarPage("Bayesian Power Simulation Explorer",
                           sidebarLayout(
                             sidebarPanel(
                               selectInput("parameter3", "Parameter:", choices = c("Threshold", "Slope")),
-                              numericInput("manual_subjects", "Number of subjects:", value = 30, min = 1, max = 150, step = 1),
-                              numericInput("manual_trials", "Number of trials:", value = 40, min = 1, max = 150, step = 1),
+                              numericInput("manual_subjects", "Number of subjects:", value = 30, min = 15, max = 120, step = 1),
+                              numericInput("manual_trials", "Number of trials:", value = 40, min = 30, max = 90, step = 1),
                               numericInput("manual_es", "Effect size (d):", value = 0.5, min = 0, max = 1, step = 0.01),
                               actionButton("manual_submit", "Submit")
                             ),
@@ -97,6 +98,7 @@ server <- function(input, output, session) {
                       ylim = c(input$subjects[1], input$subjects[2])) +
       scale_x_continuous(breaks = scales::pretty_breaks(n = 3)) +
       scale_y_continuous(breaks = scales::pretty_breaks(n = 3)) +
+      scale_color_manual(labels=c('Hierarchical','Simple t-test','Uncertainty prop. t-test'),values =c('#D55E00','#CC79A7','#0072B2'))+
       theme(text = element_text(size = 16))
   })
   
@@ -274,6 +276,8 @@ server <- function(input, output, session) {
       labs(x = "Effect size (d)", y = "Power",colour='Test type',fill='Test type') +
       scale_y_continuous(limits = c(0, 1)) +
       scale_x_continuous(limits = c(0, 1)) +
+      scale_color_manual(labels=c('Hierarchical','Simple t-test','Uncertainty prop. t-test'),values =c('#D55E00','#CC79A7','#0072B2'))+
+      scale_fill_manual(labels=c('Hierarchical','Simple t-test','Uncertainty prop. t-test'),values =c('#D55E00','#CC79A7','#0072B2'))+
       theme(text = element_text(size = 16))+
       geom_hline(yintercept = 0.05, linetype = 2)+
       geom_hline(yintercept = as.numeric(desired_power), linetype = 2)

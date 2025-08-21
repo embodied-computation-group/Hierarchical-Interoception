@@ -196,22 +196,22 @@ fit_eip_HRDT <-
     prior = empirically_informed_priors_HRDT
     )
 
-fit_wip_HRDT <-
-  brm(
-    bff_HRDT,
-    data=sim_data_HRDT,
-    chains = 4,
-    cores = 4,
-    seed = seed,
-    backend = "cmdstan",
-    warmup=2000,
-    iter=4000,           
-    control=list(
-     adapt_delta=0.9,
-     max_treedepth = 10
-     ),
-    prior = weakly_informative_priors_HRDT
-    )
+# fit_wip_HRDT <-
+#   brm(
+#     bff_HRDT,
+#     data=sim_data_HRDT,
+#     chains = 4,
+#     cores = 4,
+#     seed = seed,
+#     backend = "cmdstan",
+#     warmup=2000,
+#     iter=4000,           
+#     control=list(
+#      adapt_delta=0.9,
+#      max_treedepth = 10
+#      ),
+#     prior = weakly_informative_priors_HRDT
+#     )
 ```
 
 ## Model diagnosing
@@ -296,15 +296,24 @@ sprintf(
 We can then construct plots that show the posterior distribution for the group-level differences in threshold and slope. We will also add a line range materializing the 95% CI.
 
 ```{r}
+summary_stats_HRDT_plot<-
+  summary_stats_HRDT %>% 
+  filter(grepl('diff',summary_stats_HRDT$name)) %>% 
+  mutate(name=factor(name,c('mean_alpha_diff','mean_beta_diff'),c('Threshold','Log(Slope)'))) 
+
+  
 as_draws_df(fit_eip_HRDT) %>% 
   select(b_alpha_conditiontreatment,b_beta_conditiontreatment) %>% 
+  rename(
+    mean_alpha_diff=b_alpha_conditiontreatment,
+    mean_beta_diff=b_beta_conditiontreatment
+  ) %>%
   pivot_longer(everything()) %>% 
-  full_join(summary_stats_HRDT) %>% 
-  mutate(name=factor(name,c('b_alpha_conditiontreatment','b_beta_conditiontreatment'),c('Threshold','Log(Slope)'))) %>% 
+  mutate(name=factor(name,c('mean_alpha_diff','mean_beta_diff'),c('Threshold','Log(Slope)'))) %>% 
   ggplot()+
   geom_histogram(aes(x=value),color='black')+
   geom_vline(aes(xintercept = 0),linetype='dotted',color='grey',linewidth=1)+
-  geom_pointrange(aes(x=m,xmin=LB,xmax=UB,y=-20,group = name),linewidth=1)+
+  geom_pointrange(data=summary_stats_HRDT_plot,aes(x=m,xmin=LB,xmax=UB,y=-20,group = name),linewidth=1)+
   labs(
     title='Group mean differences between conditions',
     subtitle='HRDT',
@@ -645,22 +654,22 @@ fit_eip_RRST <-
     prior = empirically_informed_priors_RRST
     )
 
-fit_wip_RRST <-
-  brm(
-    bff_RRST,
-    data=sim_data_RRST,
-    chains = 4,
-    cores = 4,
-    seed = seed,
-    backend = "cmdstan",
-    warmup=1000,
-    iter=2000,   
-    control=list(
-     adapt_delta=0.99,
-     max_treedepth = 10
-     ),
-    prior = weakly_informative_priors_RRST
-  )
+# fit_wip_RRST <-
+#   brm(
+#     bff_RRST,
+#     data=sim_data_RRST,
+#     chains = 4,
+#     cores = 4,
+#     seed = seed,
+#     backend = "cmdstan",
+#     warmup=1000,
+#     iter=2000,   
+#     control=list(
+#      adapt_delta=0.99,
+#      max_treedepth = 10
+#      ),
+#     prior = weakly_informative_priors_RRST
+#   )
 ```
 
 ## Model diagnosing
@@ -780,6 +789,7 @@ spread_diffs<-
 spread_diffs_stats<-
   spread_diffs %>% 
   summarise(
+    name='spread_difference',
     m=mean(difference),
     LB=quantile(difference,0.025),
     UB=quantile(difference,0.975),
@@ -833,28 +843,25 @@ sprintf(
 We can then construct plots that show the posterior distribution for the group-level differences in threshold and spread. We will also add a linerange materializing the 95% CI.
 
 ```{r}
-spread_differences_long<-
+spread_differences<-
   spread_diffs %>% 
-  select(difference) %>% 
-  rename(value=difference) %>% 
-  mutate(
-    name='spread_difference',
-    m=spread_diffs_stats$m,
-    LB=spread_diffs_stats$LB,
-    UB=spread_diffs_stats$UB,
-    p_larger_than_0=spread_diffs_stats$p_larger_than_0,
-    pseudo_p_value=spread_diffs_stats$pseudo_p_value
-    ) 
+  select(difference)
+summary_RRST_plot<-
+  summary_stats_RRST %>% 
+  filter(name=='mean_alpha_diff') %>% 
+  full_join(spread_diffs_stats) %>% 
+  mutate(name=factor(name,c('mean_alpha_diff','spread_difference'),c('Log(Threshold)','Spread')))
+
 as_draws_df(fit_eip_RRST) %>% 
+  select(b_alpha_conditiontreatment) %>% 
+  rename(mean_alpha_diff=b_alpha_conditiontreatment) %>% 
+  mutate(spread_difference=spread_differences$difference) %>% 
   pivot_longer(everything()) %>% 
-  full_join(summary_stats_RRST) %>% 
-  filter(name=='b_alpha_conditiontreatment') %>% 
-  full_join(spread_differences_long) %>% 
-  mutate(name=factor(name,c('b_alpha_conditiontreatment','spread_difference'),c('Log(Threshold)','Spread'))) %>% 
+  mutate(name=factor(name,c('mean_alpha_diff','spread_difference'),c('Log(Threshold)','Spread'))) %>% 
   ggplot()+
   geom_histogram(aes(x=value),color='black')+
   geom_vline(aes(xintercept = 0),linetype='dotted',color='grey',linewidth=1)+
-  geom_pointrange(aes(x=m,xmin=LB,xmax=UB,y=-10,group = name))+
+  geom_pointrange(data=summary_RRST_plot,aes(x=m,xmin=LB,xmax=UB,y=-10,group = name))+
   labs(
     title='Group mean differences between conditions',
     subtitle='RRST',
