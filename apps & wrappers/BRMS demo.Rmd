@@ -8,6 +8,8 @@ output: pdf_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 pacman::p_load(cmdstanr, tidyverse,posterior, bayesplot, tidybayes, rstan, brms,pracma)
+
+
 inv_logit<-function(x){
   y=1/(1+exp(-x))
   return(y)
@@ -16,7 +18,7 @@ inv_logit<-function(x){
 
 This markdown will guide you through the usage of BRMS to fit hierarchical psychometric functions to data generated with the Heart Rate Discrimination Task (HRDT) and the Respiratory Resistance Sensitivity Task (RRST). 
 Here we showcase how to analyze simple within subject experiments with a control and a treatment condition.
-This demo is a companion of our paper : INSERT_DOI
+This demo is a companion of our paper : https://doi.org/10.1101/2025.08.27.672360
 
 # Analyzing Heart Rate Discrimination Task data
 
@@ -24,7 +26,7 @@ This demo is a companion of our paper : INSERT_DOI
 
 To demonstrate how to run the hierarchical analysis in BRMS, we first need some data. Therefore, we simulate 50 subjects going through two conditions of a task similar to the HRDT, with the treatment condition leading to an increase of the threshold parameter alpha of five ΔBPM.
 
-*Note: To keep this simulation simple we do not use an adaptive method to optimize stimulus placement based on the responses of the participant. Instead, we simulate responses to 30 trials for each intensity within the pre-selected range (from -40 to +40* ΔBPM *in increments of 5). This leads to a rather large total number of trials but the information contained in the dataset is not necessarily much more than in a dataset 10 times smaller with adaptive stimulus placement.*
+*Note: To keep this simulation simple we do not use an adaptive method to optimize stimulus placement based on the responses of the participant. Instead, we simulate responses to 30 trials for each intensity within the pre-selected range (from -40 to +40 ΔBPM in increments of 5). This leads to a rather large total number of trials but the information contained in the dataset is not necessarily much more than in a dataset 10 times smaller with adaptive stimulus placement.*
 
 In case you have real data you want to analyze, you don't need to go through this step. Instead, make sure you format your data in the same way we use here if you want to reemploy this code.
 
@@ -102,7 +104,7 @@ sim_data_HRDT <-
 
 Before we proceed, let's plot the data of our (simulated) participants.
 
-```{r}
+```{r, fig.height=7,fig.width=10}
 sim_data_HRDT %>% 
   ggplot()+
   geom_point(aes(x = x, y = y/n, col = condition),alpha=.5)+ 
@@ -116,9 +118,9 @@ sim_data_HRDT %>%
   )
 ```
 
-## BRMS model definition
+## Model Specification
 
-Now in order to fit this data using BRMS we need to specify a model using *bf()*. In line with the paper, HRDT data is modelled by a Gaussian cumulative density function whose lower and upper asymptotes are set by a lapse rate lambda.
+Now in order to fit this data using BRMS we need to specify a model using *bf()*. In line with the paper, HRDT data is modelled by a Gaussian cumulative density function whose lower and upper asymptotes are set by a lapse rate $\lambda$.
 
 $$
 \lambda + (1 - 2 \cdot \lambda) \cdot \left(0.5 + 0.5 \cdot \operatorname{erf}\left( \frac{{\beta}\cdot (x - \alpha)}{\sqrt{2}} \right) \right)
@@ -176,7 +178,7 @@ weakly_informative_priors_HRDT = c(
 
 We can now fit the model to our (simulated) data. Here we include code to fit it with both types of priors but we will focus on the model fit with the empirically informed priors in the rest of this demo.
 
-*Note: This might take some time. To reduce run time, consider commenting out one of the calls to the brm function.*
+*Note: This might take some time. To reduce run time.*
 
 ```{r}
 fit_eip_HRDT <-
@@ -255,6 +257,7 @@ summary_stats_HRDT<-
     )
 print(summary_stats_HRDT)
 ```
+
 ## Reporting the results
 If we use the conventional 5% threshold, these results indicate a significant effect of treatment on the threshold parameter alpha but not on the slope parameter beta. This corresponds to the group mean differences that we used to simulate the data, which were 5 and 0 for alpha and beta respectively.
 We could write something like this to report these results in a paper:
@@ -425,10 +428,11 @@ pfs_ppc %>%
   ) +
   theme_minimal(base_size = 12)
 ```
+
 ### Individual participant PF
 
 Finally, we should also have a look at individual participants' psychometric functions to check they align with the data.
-```{r}
+```{r, fig.height=7,fig.width=10}
 pf <- function(x,alpha,beta,lambda){lambda + (1-2*lambda) * (0.5+0.5 * erf(beta*(x-alpha)/(sqrt(2))))}
 
 t<-data.frame(coef(fit_eip_HRDT)$subj[1:n_subj_HRDT,1,]) %>% 
@@ -475,6 +479,7 @@ t %>%
     x='ΔBPM'
     )
 ```
+
 # Analyzing Respiratory Resistance Sensitivity Task data
 
 This section largely follows the same steps as the one of HRDT data analysis but this time the procedures are adapted to RRST data.
@@ -560,7 +565,8 @@ sim_data_RRST <-
 
 Now we can plot the data of our (simulated) participants.
 
-```{r}
+```{r, fig.height=7,fig.width=10}
+
 sim_data_RRST %>% 
   ggplot()+
   geom_point(aes(x = x/17, y = y/n, col = condition),alpha=.5)+ 
@@ -634,7 +640,7 @@ weakly_informative_priors_RRST = c(
 
 We can now fit the model to our (simulated) data. Here we include code to fit it with both types of priors but we will focus on the model fit with the empirically informed priors in the rest of this demo.
 
-*Note: This might take some time. To reduce run time, consider commenting out one of the calls to the * brm *function.*
+*Note: This might take some time*
 
 ```{r}
 fit_eip_RRST <-
@@ -718,25 +724,11 @@ If we use the conventional 5% threshold, these results indicate a significant ef
 
 Here we need to warn you about a specificity of non-symmetrical PFs such as the Weibull or the Gumbell. For these functions, the slope parameter beta is a shape parameter rather than a dispersion/precision parameter like in the case of the Gaussian CDF. As a consequence the actual dispersion/precision/slope of the PF is set by both the threshold parameter alpha and the "slope" parameter beta.
 
-This makes effects on parameter beta difficult to interpret. Instead of testing effects on beta, we therefore recommend to test effects on the spread of the function. This quantity reflects the true dispersion of the function and can be interpreted in terms of precision/reliability similarly to the slope parameter of a Gaussian PF. Here is it's equation for the spread of a Weibull function: 
-$$
-\alpha \cdot \left( \left( -log \left(1 - \frac{1 - \lambda - \delta - \gamma}{1 - \gamma - \lambda} \right) \right)^\frac{1}{\beta}-\left(-log\left(1 - \frac{\delta}{1 - \gamma - \lambda}\right)\right) ^ \frac{1}{\beta} \right)
-$$
+Please see the `Mathematical rationale.Rmd` for how this can be shown using the equations of the psychometric weibull. In the markdown we show that the spread of the function scales linearly with the threshold $alpha$ parameter when beta is constant. This all makes the effects on parameter beta difficult to interpret. 
 
+Therefore we recommend that instead of testing effects on beta to test effects on the spread of the function. This quantity reflects the true dispersion of the function and can be interpreted in terms of precision/reliability similarly to the slope parameter of a Gaussian PF. 
 
-Knowing the guess rate gamma is 0.5 by design and making the assumptions no lapse occurs, we can simplify to: 
-$$
-\alpha \cdot \left( (-log(2\cdot\delta))^\frac{1}{\beta}-(-log(1 - 2 \cdot\delta)) ^ \frac{1}{\beta}\right)
-$$
-
-
-If we then set the spread defining threshold delta to 5%, we can further simplify the expression: 
-$$
-\alpha \cdot \left( (-log(0.1))^\frac{1}{\beta}-(-log(0.9)) ^ \frac{1}{\beta}\right)
-$$
-From these equations, it is easy to see that the spread scales linearly with the threshold parameter alpha. As a consequence, if alpha changes and beta is constant, the spread changes. In some cases, changes in beta do not reflect a change of spread but rather a compensation of the effect of alpha on the spread.
-
-In the case of our simulated data, alpha changes but not beta and the spread is therefore different between the conditions. We can compute the spread difference based on the parameters used to simulate the data (in arbitrary occlusion units):
+In the case of our simulated data, alpha changes but not beta and the spread is therefore different between the conditions (again as the spread inceases linearly with the alpha when beta is constant). We can compute the spread difference based on the parameters used to simulate the data (in arbitrary occlusion units):
 
 ```{r}
 alpha_control=exp(mu_alpha_RRST)
@@ -752,7 +744,7 @@ true_spread_difference=spread_treatment-spread_control
 print(true_spread_difference)
 ```
 
-We can also use the posterior samples from our model to estimate the spread difference and assess if it is "significant". Here is some code to compute the posterior mean spread and corresponding 95% CI as well as the posterior probability of the spread difference being larger than 0 and a pseudo p-value for a two-sided test (i.e., H0 is that the effect is 0).
+We can also use the posterior samples from our model to estimate the spread difference and assess if it is "significant" i.e. different from 0. Here is some code to compute the posterior mean spread and corresponding 95% CI as well as the posterior probability of the spread difference being larger than 0 and a pseudo p-value for a two-sided test (i.e., H0 is that the effect is 0).
 
 ```{r}
 spreads<-
@@ -800,7 +792,8 @@ print(spread_diffs_stats)
 ```
 
 Despite having no significant effect of treatment on parameter beta, we have a significant reduction of the spread by treatment.
-This corresponds to the parameters we usd for simulations.
+This corresponds to the parameters we used for simulations.
+
 When we plot the group mean PFs later, we will see that, indeed, the treatment PF is steeper than the control one, indexing more precise or reliable perception under the treatment condition. 
 
 ## Reporting the results
@@ -978,7 +971,7 @@ pfs_ppc %>%
 ### Individual participant PF
 
 Finally, we should also have a look at individual participants' psychometric functions to check they align with the data.
-```{r}
+```{r, fig.width=10,fig.height=7}
 pf <- function(x,alpha,beta,lambda){0.5 + (0.5-lambda) * (1-exp(-(x/alpha)^beta))}
 
 t<-data.frame(coef(fit_eip_RRST)$subj[1:n_subj_RRST,1,]) %>% 
