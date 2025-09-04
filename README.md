@@ -1,9 +1,10 @@
 # Hierarchical-Interoception
 
 This repository is the companion of our pre-print "Hierarchical Bayesian Modelling of Interoceptive Psychophysics" (https://doi.org/10.1101/2025.08.27.672360).
+
 In this pre-print, we introduce hierarchical psychometric function models for the analysis of interoceptive psychophysics data, more specifically for the Heart Rate Discrimination Task (HRDT) and Respiratory Resistance Sensitivity Task (RRST).
 We validate these models (parameter and model recovery analysis), fit them to a large dataset to derive normative priors for simulations and future studies, and run a power analysis examining how different design and analysis choices influence our ability to reliably detect various effect sizes. 
-All the data and code used to prepare this manuscript is available on this repository.
+All the data and codes used to prepare this manuscript are available on this repository.
 
 In addition to the pre-print, we also provide ressources to facilitate the adoption of hierarchical modelling by researchers who work with HRDT or RRST data.
 One of these is a R markdown file demonstrating how to implement and interpet these models, using the well documented BRMS library.
