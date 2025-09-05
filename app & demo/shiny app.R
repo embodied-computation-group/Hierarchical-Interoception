@@ -107,9 +107,9 @@ server <- function(input, output, session) {
     
     if(input$parameter2 == "Threshold"){
       
-      hier_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Hierarchical/thresholdmodel.rds"))
-      psi_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi/thresholdmodel.rds"))
-      psi_un_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi_un/thresholdmodel.rds"))
+      hier_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Hierarchical","thresholdmodel.rds"))
+      psi_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi","thresholdmodel.rds"))
+      psi_un_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi_un","thresholdmodel.rds"))
       
             
       df = rbind(as_draws_df(hier_thresholdmodel$draws(c("intercept_alpha","intercept_beta","expo_alpha","expo_beta"))) %>% 
@@ -184,9 +184,9 @@ server <- function(input, output, session) {
       
     }else{
       
-      hier_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Hierarchical/slopemodel.rds"))
-      psi_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi/slopemodel.rds"))
-      psi_un_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi_un/slopemodel.rds"))
+      hier_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Hierarchical","slopemodel.rds"))
+      psi_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi","slopemodel.rds"))
+      psi_un_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi_un","slopemodel.rds"))
       
       
       df = rbind(as_draws_df(hier_thresholdmodel$draws(c("intercept_alpha","intercept_beta","expo_alpha","expo_beta"))) %>% 
@@ -291,9 +291,9 @@ server <- function(input, output, session) {
     
     if(input$parameter3 == "Threshold"){
       
-      hier_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Hierarchical/thresholdmodel.rds"))
-      psi_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi/thresholdmodel.rds"))
-      psi_un_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi_un/thresholdmodel.rds"))
+      hier_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Hierarchical","thresholdmodel.rds"))
+      psi_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi","thresholdmodel.rds"))
+      psi_un_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi_un","thresholdmodel.rds"))
       
       df = rbind(as_draws_df(hier_thresholdmodel$draws(c("intercept_alpha","intercept_beta","expo_alpha","expo_beta"))) %>% 
                    select(-contains(".")) %>% 
@@ -345,9 +345,9 @@ server <- function(input, output, session) {
       
       
     }else{
-      hier_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Hierarchical/slopemodel.rds"))
-      psi_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi/slopemodel.rds"))
-      psi_un_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi_un/slopemodel.rds"))
+      hier_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Hierarchical","slopemodel.rds"))
+      psi_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi","slopemodel.rds"))
+      psi_un_thresholdmodel <- readRDS(here::here("results","power analysis","Extracted","Psi_un","slopemodel.rds"))
       
       
       
