@@ -1,16 +1,16 @@
 # Hierarchical-Interoception v0.9.0-beta
 
-⚠️ **Pre-publication Release**: This is pre-peer-review research software. The methods and results are under review. Use with appropriate caution for research applications.
+⚠️ **Pre-publication Release**: The methods and results are under review. Use with appropriate caution for research applications.
 
 This repository is the companion of our pre-print "Hierarchical Bayesian Modelling of Interoceptive Psychophysics" (https://doi.org/10.1101/2025.08.27.672360).
 
 In this pre-print, we introduce hierarchical psychometric function models for the analysis of interoceptive psychophysics data, more specifically for the Heart Rate Discrimination Task (HRDT) and Respiratory Resistance Sensitivity Task (RRST).
-We validate these models (parameter and model recovery analysis), fit them to a large dataset to derive normative priors for simulations and future studies, and run a power analysis examining how different design and analysis choices influence our ability to reliably detect various effect sizes. 
+We validate these models (parameter and model recovery analysis), fit them to a large dataset to derive normative priors for future studies, and run a power analysis examining how different design and analysis choices influence our ability to reliably detect various effect sizes. 
 All the data and codes used to prepare this manuscript are available on this repository.
 
-In addition to the pre-print, we also provide ressources to facilitate the adoption of hierarchical modelling by researchers who work with HRDT or RRST data.
-One of these is a R markdown file demonstrating how to implement and interpet these models, using the well documented BRMS library.
-Another is a shiny app which researchers can use to explore the results of our power analysis, e.g. to justify sample size of future studies.
+In addition to the pre-print, we also provide resources to facilitate the adoption of hierarchical modelling by researchers who work with HRDT or RRST data.
+One of these is a R markdown file demonstrating how to implement and interpret these models, using the well documented BRMS library.
+Another is a shiny app which researchers can use to explore the results of our power analysis, e.g. to justify sample size of their future studies.
 
 ## Table of Contents
 1. [Quick Start](#quick-start)
@@ -62,12 +62,12 @@ Hierarchical-Interoception/
 
 The `app & demo/BRMS demo.Rmd` provides a complete workflow for data simulation and analysis for both the HRDT and RRST, including:
 
-1. **Data simulation**: Generate synthetic data with known parameters
-2. **Model specification**: Define the hierarchical psychometric function
-3. **Model fitting**: Fit using BRMS with Stan backend
-4. **Model diagnostics**: Check convergence and sampling quality
-5. **Model interpretation**: Extract posterior distributions and credible intervals
-5. **Results reporting**: Sample text showing how one could report the results in a scientific paper
+1. **Data simulation**:       Generate synthetic data with known parameters
+2. **Model specification**:   Define the hierarchical psychometric function in BRMS
+3. **Model fitting**:         Fit using BRMS with Stan backend
+4. **Model diagnostics**:     Check convergence and sampling quality
+5. **Model interpretation**:  Extract posterior distributions and credible intervals
+5. **Results reporting**:     Sample text showing how one could report the results in a scientific paper
 5. **Results visualization**: Generates a series of plots that can be added to a scientific manuscript to illustrate the results
 
 The code can easily be recycled to analyze your own data.
@@ -78,9 +78,9 @@ The code can easily be recycled to analyze your own data.
 
 The Shiny app (`apps & wrappers/shiny app.R`) provides an interactive interface for exploring power analysis results with three main panels:
 
-1. **Power Grid**: Visualize power contours across different sample sizes
+1. **Power Grid**:            Visualize power contours across different sample sizes
 2. **Effect Size vs. Power**: Examine power as a function of effect size
-3. **Manual Input**: Get specific power estimates for custom parameters
+3. **Manual Input**:          Get specific power estimates for custom parameters
 
 ![Shiny App Power Grid Interface](figures/Shiny_S1.png)
 
@@ -98,41 +98,40 @@ Either enter this in the R-console
 ```r
 shiny::runApp(here::here("apps & wrappers","shiny app.R"))
 ```
-
 or go to the "app & demo" directory and run the `shiny app.R` script 
 
 ### App Usage
 
 #### Power Grid Panel
 
-1. **Parameter**: Choose between "Threshold" or "Slope"
-2. **Effect Size**: Specify the desired effect size (0.0 to 1.0)
-3. **Adjust Sample and trial Ranges**: Use sliders to set subject and trial ranges
-4. **Choose Power Level**: Select desired power (0.80, 0.90, or 0.95)
-5. **Interpret Results**: Contour lines show combinations achieving target power
+1. **Parameter**:                       Choose between "Threshold" or "Slope"
+2. **Effect Size**:                     Specify the desired effect size (0.0 to 1.0)
+3. **Adjust Sample and trial Ranges**:  Use sliders to set subject and trial ranges
+4. **Choose Power Level**:              Select desired power (0.80, 0.90, or 0.95)
+5. **Interpret Results**:               Contour lines show combinations achieving target power
 
 #### Effect Size vs. Power Panel
 
-1. **Parameter**: Choose between "Threshold" or "Slope"
-2. **Set Sample Size**: Specify number of subjects and trials
-3. **View Power Curve**: See how power changes with effect size
+1. **Parameter**:         Choose between "Threshold" or "Slope"
+2. **Set Sample Size**:   Specify number of subjects and trials
+3. **View Power Curve**:  See how power changes with effect size
 3. **Interpret Results**: Psychometric functions show (efffect size by power).
 
 #### Manual Input Panel
 
 1. **Enter Parameters**: Specify exact sample sizes and effect size and parameter
-2. **Submit Query**: Get precise power estimates for above
-3. **View Results**: See power for hierarchical, simple t-test, and uncertainty propagation methods
+2. **Submit Query**:     Get precise power estimates for above
+3. **View Results**:     See power for hierarchical, simple t-test, and uncertainty propagation methods
 
 ## Dependencies
 
-The Project is setup with "renv" and a "setup.R" script that ensures the right version of R-packages, but also installs the "cmdstanr" package" for fitting Stan models.
+The Project is setup with `renv` and a `setup.R` script that ensures the right version of R-packages, but also installs `cmdstanr` for fitting Stan models.
 If the installation of cmdstanr fails please follow the steps outlined below
 
 ### Stan Installation
 
 Stan requires a working c++ toolchain, please follow this [guide](https://mc-stan.org/install/) for your operating system. 
-After having a working c++ toolchain one can install cmdstanr with the following commands (also present in the "stetup.R")
+After having a working c++ toolchain one can install `cmdstanr` with the following commands (also present in the `setup.R`)
 
 ```r
 # Install cmdstanr

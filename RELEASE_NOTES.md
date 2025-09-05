@@ -1,10 +1,10 @@
 # Release Notes
 
-## v0.9.0-beta (2025-01-XX)
+## v0.9.0-beta (2025-05-09)
 
 ### Pre-publication Release
 
-⚠️ **Important**: This is pre-peer-review research software. The methods and results are under review. Use with appropriate caution for research applications.
+⚠️ **Important**: The methods and results are under review. Use with appropriate caution for research applications.
 
 ### What's New
 
@@ -16,8 +16,6 @@ This is the initial release of the Hierarchical-Interoception toolkit, providing
 - **Parameter Recovery Validation**: Extensive validation of model parameter recovery
 - **Power Analysis Tools**: Interactive Shiny app for power analysis exploration
 - **Educational Resources**: Complete BRMS demo with step-by-step workflow
-- **Population Fitting**: Tools for deriving normative priors from large datasets
-- **Model Comparison**: LOO-based model comparison between different psychometric functions
 
 ### Components
 
@@ -30,7 +28,7 @@ This is the initial release of the Hierarchical-Interoception toolkit, providing
 ### Getting Started
 
 1. Clone the repository
-2. Run `source("setup.R")` to install dependencies
+2. Run `source(here::here("setup.R"))` to install dependencies (see below)
 3. Follow the BRMS demo for basic usage
 4. Use the Shiny app for power analysis exploration
 
@@ -43,9 +41,6 @@ This is the initial release of the Hierarchical-Interoception toolkit, providing
 
 ### Known Issues
 
-- Some large RData files may cause slow repository cloning
-- Stan compilation required on first use
-- Path resolution may vary across operating systems
 
 ### Citation
 
