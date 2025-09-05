@@ -31,8 +31,7 @@ Another is a shiny app which researchers can use to explore the results of our p
 
 2. **Set up the environment**:
    ```r
-   # Run the setup script
-   source("setup.R")
+   source(here::here("setup.R"))
    ```
 
 3. **Try the BRMS demo**:
@@ -41,7 +40,7 @@ Another is a shiny app which researchers can use to explore the results of our p
 
 4. **Explore power analysis**:
    ```r
-   shiny::runApp("app & demo/shiny app.R")
+   shiny::runApp(here::here("app & demo","shiny app.R"))
    ```
 
 ## Structure of the repository
@@ -91,14 +90,15 @@ The Shiny app (`apps & wrappers/shiny app.R`) provides an interactive interface 
 
 1. **Install Dependencies**:
 ```r
-install.packages(c("shiny", "tidyverse", "flextable", "posterior"))
+source(here::here("setup.R"))
 ```
 
 2. **Running the App**:
 Either enter this in the R-console
 ```r
-shiny::runApp("apps & wrappers/shiny app.R")
+shiny::runApp(here::here("apps & wrappers","shiny app.R"))
 ```
+
 or go to the "app & demo" directory and run the `shiny app.R` script 
 
 ### App Usage
@@ -126,13 +126,18 @@ or go to the "app & demo" directory and run the `shiny app.R` script
 
 ## Dependencies
 
+The Project is setup with "renv" and a "setup.R" script that ensures the right version of R-packages, but also installs the "cmdstanr" package" for fitting Stan models.
+If the installation of cmdstanr fails please follow the steps outlined below
+
 ### Stan Installation
+
+Stan requires a working c++ toolchain, please follow this [guide](https://mc-stan.org/install/) for your operating system. 
+After having a working c++ toolchain one can install cmdstanr with the following commands (also present in the "stetup.R")
+
 ```r
 # Install cmdstanr
 install.packages("cmdstanr", repos = c("https://mc-stan.org/r-packages/", getOption("repos")))
 
-# Check cmdstan installation
-cmdstanr::check_cmdstan_toolchain()
 cmdstanr::install_cmdstan()
 ```
 
