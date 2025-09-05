@@ -1,4 +1,6 @@
-# Hierarchical-Interoception
+# Hierarchical-Interoception v0.9.0-beta
+
+⚠️ **Pre-publication Release**: This is pre-peer-review research software. The methods and results are under review. Use with appropriate caution for research applications.
 
 This repository is the companion of our pre-print "Hierarchical Bayesian Modelling of Interoceptive Psychophysics" (https://doi.org/10.1101/2025.08.27.672360).
 
@@ -11,12 +13,36 @@ One of these is a R markdown file demonstrating how to implement and interpet th
 Another is a shiny app which researchers can use to explore the results of our power analysis, e.g. to justify sample size of future studies.
 
 ## Table of Contents
-1. [Structure of the repository](#structure-of-the-repository)
-2. [Using the BRMS Demo](#using-the-brms-demo)
-3. [Shiny App Deployment and Usage](#shiny-app-deployment-and-usage)
-3. [Dependencies](#dependencies)
-3. [Citation](#citation)
-3. [Contact](#contact)
+1. [Quick Start](#quick-start)
+2. [Structure of the repository](#structure-of-the-repository)
+3. [Using the BRMS Demo](#using-the-brms-demo)
+4. [Shiny App Deployment and Usage](#shiny-app-deployment-and-usage)
+5. [Dependencies](#dependencies)
+6. [Citation](#citation)
+7. [Contact](#contact)
+
+## Quick Start
+
+1. **Clone the repository**:
+   ```bash
+   git clone https://github.com/[username]/Hierarchical-Interoception.git
+   cd Hierarchical-Interoception
+   ```
+
+2. **Set up the environment**:
+   ```r
+   # Run the setup script
+   source("setup.R")
+   ```
+
+3. **Try the BRMS demo**:
+   - Open `app & demo/BRMS demo.Rmd`
+   - Run the code to see a complete analysis workflow
+
+4. **Explore power analysis**:
+   ```r
+   shiny::runApp("app & demo/shiny app.R")
+   ```
 
 ## Structure of the repository
 

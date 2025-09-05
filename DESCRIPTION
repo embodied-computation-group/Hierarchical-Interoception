@@ -1,0 +1,42 @@
+Package: Hierarchical-Interoception
+Type: Package
+Title: Hierarchical Bayesian Modelling of Interoceptive Psychophysics
+Version: 0.9.0-beta
+Authors@R: c(
+    person("Arthur S.", "Courtin", role = c("aut", "cre"), email = "arthur.courtin@clin.au.dk"),
+    person("Jesper Fischer", "Ehmsen", role = "aut"),
+    person("Leah", "Banellis", role = "aut"),
+    person("Francesca", "Fardo", role = "aut"),
+    person("Micah", "Allen", role = "aut")
+    )
+Description: This package provides tools for hierarchical Bayesian modeling of 
+    interoceptive psychophysics data, specifically for Heart Rate Discrimination 
+    Task (HRDT) and Respiratory Resistance Sensitivity Task (RRST). It includes 
+    Stan models, power analysis tools, and educational resources for researchers 
+    working with interoceptive psychophysics.
+License: MIT + file LICENSE
+URL: https://github.com/[username]/Hierarchical-Interoception
+BugReports: https://github.com/[username]/Hierarchical-Interoception/issues
+Depends: R (>= 4.0.0)
+Imports: 
+    brms,
+    cmdstanr,
+    tidyverse,
+    posterior,
+    bayesplot,
+    tidybayes,
+    rstan,
+    here,
+    loo,
+    shiny,
+    flextable,
+    pracma,
+    furrr
+Suggests: 
+    knitr,
+    rmarkdown,
+    testthat
+VignetteBuilder: knitr
+RoxygenNote: 7.2.3
+Encoding: UTF-8
+LazyData: true

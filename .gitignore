@@ -1,6 +1,48 @@
+# R specific
 .Rproj.user
 .Rhistory
 .RData
 .Ruserdata
+.Rapp.history
+*.Rproj
+.Rproj.user/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*~
+*.tmp
+*.temp
+*.swp
+*.swo
+
+# Stan compiled models
+*.rds
+*.rda
+*.RData
+
+# Large data files (uncomment if needed)
+# *.csv
+# data/raw_*.csv
+
+# OSF sync folder
 osf/
 results/Fit population/
+
+# IDE files
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Backup files
+*.bak
+*.backup
