@@ -83,6 +83,8 @@ The Shiny app (`apps & wrappers/shiny app.R`) provides an interactive interface 
 2. **Effect Size vs. Power**: Examine power as a function of effect size
 3. **Manual Input**: Get specific power estimates for custom parameters
 
+![Shiny App Power Grid Interface](figures/Shiny_S1.png)
+
 ### Deployment
 
 #### Local Deployment
