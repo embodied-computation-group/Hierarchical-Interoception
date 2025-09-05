@@ -3,7 +3,7 @@ Type: Package
 Title: Hierarchical Bayesian Modelling of Interoceptive Psychophysics
 Version: 0.9.0-beta
 Authors@R: c(
-    person("Arthur S.", "Courtin", role = c("aut", "cre"), email = "arthur.courtin@clin.au.dk"),
+    person("Arthur S.", "Courtin", role = c("aut", "cre"), email = "arthur.courtin@cfin.au.dk"),
     person("Jesper Fischer", "Ehmsen", role = "aut"),
     person("Leah", "Banellis", role = "aut"),
     person("Francesca", "Fardo", role = "aut"),
