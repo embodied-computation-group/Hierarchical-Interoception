@@ -134,7 +134,7 @@ bff_HRDT =
     y|trials(n) ~ (inv_logit(lambda) / 2 + (1-inv_logit(lambda)) * (0.5+0.5 * erf(exp(beta)*(x-alpha)/(sqrt(2))))),
     alpha ~ condition + (condition | subj),  
     beta ~ condition + (condition | subj),  
-    lambda~ + (1 | subj),
+    lambda~ 1 + (1 | subj),
     nl = TRUE,
     family=binomial(link="identity")
 )
@@ -188,7 +188,7 @@ fit_eip_HRDT <-
     chains = 4,
     cores = 4,
     seed = seed,
-    backend = "cmdstan",
+    backend = "cmdstanr",
     warmup=2000,
     iter=4000,           
     control=list(
@@ -197,6 +197,7 @@ fit_eip_HRDT <-
      ),
     prior = empirically_informed_priors_HRDT
     )
+
 
 # fit_wip_HRDT <-
 #   brm(
@@ -224,7 +225,31 @@ No warning is popping up to tell us something went wrong with the sampler (i.e. 
 fit_eip_HRDT
 ```
 
+
 Before we interpret the results, we need to make sure the posterior has been properly sampled. To do so, we need to check that R-hat values are smaller or equal to 1.01 and effective sample sizes (ESS) values are 400 or more. Once again, the diagnostics are fine (again, if they aren't on your side, please refer to BRMS/Stan documentation).
+
+checking these can be done with the following code.
+```{r}
+bfmi <- function(energy) {
+  de <- diff(energy)
+  var(de) / var(energy)
+}
+
+sp <- get_sampler_params(fit_eip_HRDT$fit, inc_warmup = FALSE)
+
+df <- do.call(rbind, lapply(seq_along(sp), function(i) {
+  cbind(as.data.frame(sp[[i]]), chain = i)
+}))
+
+
+df %>% group_by(chain) %>% summarize(number_divergent = sum(divergent__),
+                                     low_energy = bfmi(energy__) < 0.3,
+                                     max_treedpeth = max(treedepth__))
+
+```
+
+Here we want to see that the number of divergences for each chain is 0 that the low_energy is FALSE for all chains and the max_treedepth is below what we set when running the model. 
+
 
 ## Model interpretation
 
@@ -687,6 +712,26 @@ fit_eip_RRST
 ```
 
 Before we interpret the results, we need to make sure the posterior has been properly sampled. To do so, we need to check that R-hat values are smaller or equal to 1.01 and effective sample sizes (ESS) values are 400 or more. Once again, the diagnostics are fine (again, if they aren't on your side, please refer to BRMS/Stan documentation).
+
+checking these can be done with the following code.
+```{r}
+bfmi <- function(energy) {
+  de <- diff(energy)
+  var(de) / var(energy)
+}
+
+sp <- get_sampler_params(fit_eip_RRST$fit, inc_warmup = FALSE)
+
+df <- do.call(rbind, lapply(seq_along(sp), function(i) {
+  cbind(as.data.frame(sp[[i]]), chain = i)
+}))
+
+
+df %>% group_by(chain) %>% summarize(number_divergent = sum(divergent__),
+                                     low_energy = bfmi(energy__) < 0.3,
+                                     max_treedpeth = max(treedepth__))
+
+```
 
 ## Model interpretation
 
