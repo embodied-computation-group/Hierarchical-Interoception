@@ -325,12 +325,12 @@ combined<-temp %>%
 
 
 
-combined %>% 
+threshold = combined %>% 
   filter(variable=='threshold') %>% 
   ggplot()+
   geom_abline(aes(intercept = 0,slope=1))+
   geom_linerange(aes(x=simulated_values,ymin=q5,ymax=q95,color=dataset))+
-  geom_text(aes(x=25,y=-60+20*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  geom_text(aes(x=100,y=-50+30*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
   theme_minimal()+
   scale_color_manual(values = c('#0072B2','#E69F00'))+
   theme(legend.position = 'none')+
@@ -339,14 +339,14 @@ combined %>%
   ggtitle('Subject level threshold')
 
 
-ggsave(here::here("figures",'ss_Figure3B.tiff'),units = 'cm',width = 8,height = 6.5)
+# ggsave(here::here("figures",'ss_Figure3B.tiff'),units = 'cm',width = 8,height = 6.5)
 
-combined %>% 
+slope = combined %>% 
   filter(variable=='slope') %>% 
   ggplot()+
   geom_abline(aes(intercept = 0,slope=1))+
   geom_linerange(aes(x=simulated_values,ymin=q5,ymax=q95,color=dataset))+
-  geom_text(aes(x=3,y=7+0.7*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  geom_text(aes(x=6.5,y=2.5+1*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
   theme_minimal()+
   scale_color_manual(values = c('#0072B2','#E69F00'))+
   theme(legend.position = 'none')+
@@ -355,14 +355,14 @@ combined %>%
   ggtitle('Subject level slope')
 
 
-ggsave(here::here("figures",'ss_Figure3C.tiff'),units = 'cm',width = 8,height = 6.5)
+# ggsave(here::here("figures",'ss_Figure3C.tiff'),units = 'cm',width = 8,height = 6.5)
 
-combined %>% 
+lapse = combined %>% 
   filter(variable=='lapse') %>% 
   ggplot()+
   geom_abline(aes(intercept = 0,slope=1))+
   geom_linerange(aes(x=simulated_values,ymin=q5,ymax=q95,color=dataset))+
-  geom_text(aes(x=0.15,y=0.45+0.05*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  geom_text(aes(x=0.45,y=0.2+0.07*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
   theme_minimal()+
   scale_color_manual(values = c('#0072B2','#E69F00'))+
   theme(legend.position = 'none')+
@@ -370,6 +370,14 @@ combined %>%
   ylab('Estimate')+
   ggtitle('Subject level lapse')
 
-ggsave(here::here("figures",'ss_Figure3D.tiff'),units = 'cm',width = 8,height = 6.5)
+# ggsave(here::here("figures",'ss_Figure3D.tiff'),units = 'cm',width = 8,height = 6.5)
+```
+
+
+```{r, fig.height=7.2,fig.width=7.2}
+library(patchwork)
+threshold / slope / lapse
+ggsave(here::here("figures",'supp_ss_recov.tiff'),units = 'in',width = 7.2,height = 7.2)
+
 
 ```
