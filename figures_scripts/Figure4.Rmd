@@ -5,6 +5,8 @@ output: html_document
 
 ```{r}
 
+library(tidyverse)
+
 fit<-readRDS(here::here("results","Fit population","Extero_Normal_mm.RDS"))
 
 fit$draws(variables = c('gm[2]','gm[4]'), format = 'df') %>% 
@@ -127,6 +129,8 @@ pf_plot<-
 print(pf_plot)
 ggsave('Figure3A.tiff',units = 'cm',width = 16,height = 6)
 ```
+
+
 ```{r}
 library(mvtnorm)
 draws<-

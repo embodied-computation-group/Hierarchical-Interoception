@@ -330,7 +330,7 @@ threshold = combined %>%
   ggplot()+
   geom_abline(aes(intercept = 0,slope=1))+
   geom_linerange(aes(x=simulated_values,ymin=q5,ymax=q95,color=dataset))+
-  geom_text(aes(x=100,y=-50+30*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  geom_text(aes(x=-100,y=100+50*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
   theme_minimal()+
   scale_color_manual(values = c('#0072B2','#E69F00'))+
   theme(legend.position = 'none')+
@@ -345,8 +345,8 @@ slope = combined %>%
   filter(variable=='slope') %>% 
   ggplot()+
   geom_abline(aes(intercept = 0,slope=1))+
-  geom_linerange(aes(x=simulated_values,ymin=q5,ymax=q95,color=dataset))+
-  geom_text(aes(x=6.5,y=2.5+1*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  geom_linerange(aes(x=log(simulated_values),ymin=log(q5),ymax=log(q95),color=dataset))+
+  geom_text(aes(x=-4.5,y=1+1.5*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
   theme_minimal()+
   scale_color_manual(values = c('#0072B2','#E69F00'))+
   theme(legend.position = 'none')+
@@ -361,8 +361,8 @@ lapse = combined %>%
   filter(variable=='lapse') %>% 
   ggplot()+
   geom_abline(aes(intercept = 0,slope=1))+
-  geom_linerange(aes(x=simulated_values,ymin=q5,ymax=q95,color=dataset))+
-  geom_text(aes(x=0.45,y=0.2+0.07*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  geom_linerange(aes(x=brms::logit_scaled(simulated_values),ymin=brms::logit_scaled(q5),ymax=brms::logit_scaled(q95),color=dataset))+
+  geom_text(aes(x=-11,y=-0.5+2*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
   theme_minimal()+
   scale_color_manual(values = c('#0072B2','#E69F00'))+
   theme(legend.position = 'none')+
@@ -377,7 +377,7 @@ lapse = combined %>%
 ```{r, fig.height=7.2,fig.width=7.2}
 library(patchwork)
 threshold / slope / lapse
-ggsave(here::here("figures",'supp_ss_recov.tiff'),units = 'in',width = 7.2,height = 7.2)
+ggsave(here::here("figures",'supp_ss_recov_scale.tiff'),units = 'in',width = 7.2,height = 7.2)
 
 
 ```

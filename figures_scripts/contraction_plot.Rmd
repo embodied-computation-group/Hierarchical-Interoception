@@ -1,0 +1,390 @@
+---
+title: "Contraction"
+author: "A.S. Courtin"
+date: "2025-02-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(cmdstanr)
+library(posterior)
+library(patchwork)
+
+source(here::here("scripts","utility.R"))
+Extero_Normal_mm<-readRDS(here::here("results","Fit population","Extero_Normal_mm.RDS"))
+
+```
+
+```{r, fig.width=12,fig.height=6}
+
+
+n_draws = 10000
+priors <- tibble(
+  variable = c(
+    "gm[1]", "gm[2]", "gm[3]", "gm[4]", "gm[5]",
+    "tau_u[1]", "tau_u[2]", "tau_u[3]", "tau_u[4]", "tau_u[5]"
+  ),
+  mean = c(
+    -1.3, 0, 0, 0, -4,
+     0,   0, 0, 0,  0
+  ),
+  sd = c(
+     1.3, 3, 50, 50, 2,
+     1.3, 1.3, 50, 50, 2
+  )
+)
+
+draws_df <- priors %>%
+  mutate(draws = map2(mean, sd, ~ rnorm(n_draws, .x, .y))) %>%
+  unnest(draws)
+
+prior_sd <- draws_df %>%
+  group_by(variable) %>%
+  summarise(
+    pre_var = var(draws),
+    .groups = "drop"
+  )
+
+post_sd = as_draws_df(Extero_Normal_mm$draws(c("gm","tau_u"))) %>% select(-contains(".")) %>% 
+  pivot_longer(everything()) %>% group_by(name) %>% 
+  summarize(post_var = sd(value)^2) %>% 
+  rename(variable = name)
+
+label_map <- c(
+  "gm[1]"    = "μ[Slope]",
+  "gm[2]"    = "μ[Slope[dif]]",
+  "gm[3]"    = "μ[Threshold]",
+  "gm[4]"    = "μ[Threshold[dif]]",
+  "gm[5]"    = "μ[Lapse]",
+  "tau_u[1]" = "σ[Slope]",
+  "tau_u[2]" = "σ[Slope[dif]]",
+  "tau_u[3]" = "σ[Threshold]",
+  "tau_u[4]" = "σ[Threshold[dif]]",
+  "tau_u[5]" = "σ[Lapse]"
+)
+
+grouplevel_con = inner_join(post_sd, prior_sd) %>%
+  mutate(contraction = 1 - (post_var / pre_var)) %>%
+  mutate(variable2 = recode(variable, !!!label_map)) %>%
+  mutate(variable = "Grouplevel") %>% 
+  ggplot(aes(x = variable2, y = contraction)) +
+  geom_point() +
+  scale_y_continuous(limits = c(0.4,1))+
+  scale_x_discrete(labels = function(x) parse(text = x)) +
+  xlab("")+
+  theme_classic()+
+  facet_wrap(~variable, labeller = label_both)
+
+
+```
+
+
+```{r, fig.width=12,fig.height=6}
+
+n_draws <- 10000
+
+df <- tibble(
+  variable = c(
+    "gm[1]", "gm[2]", "gm[3]", "gm[4]", "gm[5]",
+    "tau_u[1]", "tau_u[2]", "tau_u[3]", "tau_u[4]", "tau_u[5]"
+  ),
+  mean = c(
+    -1.3, 0, 0, 0, -4,
+     0,   0, 0, 0,  0
+  ),
+  sd = c(
+     1.3, 3, 50, 50, 2,
+     1.3, 1.3, 50, 50, 2
+  )
+) %>%
+  mutate(
+    p    = as.integer(str_extract(variable, "\\d+")),
+    type = str_extract(variable, "^[a-z_]+")
+  ) %>%
+  select(p, type, mean, sd) %>%
+  group_by(p, type) %>%
+  summarise(
+    draw = list(rnorm(n_draws, mean, sd)),
+    .groups = "drop"
+  ) %>%
+  unnest(draw) %>%
+  group_by(p, type) %>%
+  mutate(draw_id = row_number()) %>%
+  ungroup() %>%
+  pivot_wider(
+    names_from  = type,
+    values_from = draw
+  )
+
+priorvar = df %>%
+  mutate(
+    z = rnorm(n()),
+    theta = gm + tau_u * z,
+    theta_name = paste0("theta[", p, "]")
+  ) %>%
+  group_by(theta_name) %>%
+  summarise(prior_variance = var(theta)) %>% 
+  ungroup() %>% 
+  mutate(variable = ifelse(theta_name == "theta[1]","Slope",
+                            ifelse(theta_name == "theta[2]","Slope_dif",
+                                   ifelse(theta_name == "theta[3]","Threshold",
+                                          ifelse(theta_name == "theta[4]","Threshold_dif",
+                                                 ifelse(theta_name == "theta[5]","Lapse",NA))))),
+         theta_name = NULL)
+
+
+
+subject_lapse = as_draws_df(Extero_Normal_mm$draws(c("lapse_p"))) %>% 
+  select(-contains(".")) %>% 
+  mutate(draw = 1:n()) %>% 
+    pivot_longer(-draw) %>% 
+    mutate(
+    subject = as.integer(str_match(name, "\\[(\\d+),(\\d+)\\]")[,3])
+  ) %>% 
+    group_by(subject) %>% 
+  summarize(post_var = sd(value)^2) %>% 
+  mutate(variable = "Lapse")
+
+post_sd_sub = as_draws_df(Extero_Normal_mm$draws(c("param"))) %>% 
+  select(-contains(".")) %>% 
+  mutate(draw = 1:n()) %>% 
+  pivot_longer(-draw) %>% 
+    mutate(
+    subject = as.integer(str_match(name, "\\[(\\d+),(\\d+)\\]")[,2]),
+    variable = as.integer(str_match(name, "\\[(\\d+),(\\d+)\\]")[,3])
+  ) %>% 
+    group_by(subject,variable) %>% 
+  summarize(post_var = sd(value)^2) %>% 
+  mutate(variable = ifelse(variable == 1, "Slope",
+                           ifelse(variable == 2, "Slope_dif",
+                                  ifelse(variable == 3, "Threshold",
+                                         ifelse(variable == 4, "Threshold_dif",NA)))))
+
+subject_params = rbind(subject_lapse,post_sd_sub)
+
+p1 = inner_join(priorvar, subject_params) %>% 
+  mutate(contraction = 1 - (post_var / prior_variance)) %>% 
+  ggplot(aes(x = subject, y = contraction))+
+  geom_point(alpha = 0.3)+
+  facet_wrap(~variable, scales = "free", labeller = label_both, ncol = 2)+
+  theme_classic()
+
+```
+
+# combined
+
+```{r, fig.width=12,fig.height=10}
+get_plot = function(variable2, axis_title){
+  
+  if(axis_title){
+    inner_join(priorvar, subject_params) %>% 
+      filter(variable == variable2) %>% 
+      mutate(contraction = 1 - (post_var / prior_variance)) %>% 
+      ggplot(aes(x = subject, y = contraction))+
+      geom_point(alpha = 0.3)+
+      scale_y_continuous(limits = c(0.4,1))+
+      facet_wrap(~variable, scales = "free", labeller = label_both, ncol = 2)+
+      theme_classic()
+  }else{
+    inner_join(priorvar, subject_params) %>% 
+      filter(variable == variable2) %>% 
+      mutate(contraction = 1 - (post_var / prior_variance)) %>% 
+      ggplot(aes(x = subject, y = contraction))+
+      geom_point(alpha = 0.3)+
+      scale_y_continuous(limits = c(0.4,1))+
+      facet_wrap(~variable, scales = "free", labeller = label_both, ncol = 2)+
+      theme_classic()+
+      ylab("")
+    
+  }
+
+}
+library(patchwork)
+pp = (get_plot("Slope",T)|get_plot("Slope_dif",F)) /  (get_plot("Threshold",T)|get_plot("Threshold_dif",F)) /  (get_plot("Lapse",T) | grouplevel_con+ylab("")+ theme(axis.text.x = element_text(angle = 30, vjust = 0.7, hjust=0.5)))
+
+ggsave(here::here("figures","contraction_subjectlevel_HRDT.tiff"), pp, dpi = 300, height = 6, width = 8)
+
+
+
+```
+
+
+
+```{r}
+
+RRST_gumbelpriors <- readRDS("~/Hierarchical-Interoception/results/Fit population/RRST_gumbelpriors_n_centered_3000_0.9.RDS")
+
+
+
+n_draws = 10000
+priors <- tibble(
+  variable = c(
+    "gm[1]", "gm[2]", "gm[3]",
+    "tau_u[1]", "tau_u[2]", "tau_u[3]"
+  ),
+  mean = c(
+    1.2, -4, -2,
+     0,   0, 0
+  ),
+  sd = c(
+     1.9, 2, 1,
+     1.9, 2, 1
+  )
+)
+
+draws_df <- priors %>%
+  mutate(draws = map2(mean, sd, ~ rnorm(n_draws, .x, .y))) %>%
+  unnest(draws)
+
+prior_sd <- draws_df %>%
+  group_by(variable) %>%
+  summarise(
+    pre_var = var(draws),
+    .groups = "drop"
+  )
+
+post_sd = as_draws_df(RRST_gumbelpriors$draws(c("gm","tau_u"))) %>% select(-contains(".")) %>% 
+  pivot_longer(everything()) %>% group_by(name) %>% 
+  summarize(post_var = sd(value)^2) %>% 
+  rename(variable = name)
+
+label_map <- c(
+  "gm[1]"    = "μ[Slope]",
+  "gm[2]"    = "μ[Lapse]",
+  "gm[3]"    = "μ[Threshold]",
+  "tau_u[1]" = "σ[Slope]",
+  "tau_u[2]" = "σ[Lapse]",
+  "tau_u[3]" = "σ[Threshold]"
+)
+
+grouplevel_con = inner_join(post_sd, prior_sd) %>%
+  mutate(contraction = 1 - (post_var / pre_var)) %>%
+  mutate(variable2 = recode(variable, !!!label_map)) %>%
+  mutate(variable = "Grouplevel") %>% 
+  ggplot(aes(x = variable2, y = contraction)) +
+  geom_point() +
+  scale_y_continuous(limits = c(0,1))+
+  scale_x_discrete(labels = function(x) parse(text = x)) +
+  xlab("")+
+  theme_classic()+
+  facet_wrap(~variable, labeller = label_both)
+
+
+
+```
+
+```{r, fig.width=12,fig.height=6}
+
+
+n_draws = 10000
+df <- tibble(
+  variable = c(
+    "gm[1]", "gm[2]", "gm[3]",
+    "tau_u[1]", "tau_u[2]", "tau_u[3]"
+  ),
+  mean = c(
+    1.2, -4, -2,
+     0,   0, 0
+  ),
+  sd = c(
+     1.9, 2, 1,
+     1.9, 2, 1
+  )
+) %>%
+  mutate(
+    p    = as.integer(str_extract(variable, "\\d+")),
+    type = str_extract(variable, "^[a-z_]+")
+  ) %>%
+  select(p, type, mean, sd) %>%
+  group_by(p, type) %>%
+  summarise(
+    draw = list(rnorm(n_draws, mean, sd)),
+    .groups = "drop"
+  ) %>%
+  unnest(draw) %>%
+  group_by(p, type) %>%
+  mutate(draw_id = row_number()) %>%
+  ungroup() %>%
+  pivot_wider(
+    names_from  = type,
+    values_from = draw
+  )
+
+priorvar = df %>%
+  mutate(
+    z = rnorm(n()),
+    theta = gm + tau_u * z,
+    theta_name = paste0("theta[", p, "]")
+  ) %>%
+  group_by(theta_name) %>%
+  summarise(prior_variance = var(theta)) %>% 
+  ungroup() %>% 
+  mutate(variable = ifelse(theta_name == "theta[1]","Slope",
+                            ifelse(theta_name == "theta[2]","Lapse",
+                                   ifelse(theta_name == "theta[3]","Threshold",NA))),
+         theta_name = NULL)
+
+
+
+post_sd_sub = as_draws_df(RRST_gumbelpriors$draws(c("param"))) %>% 
+  select(-contains(".")) %>% 
+  mutate(draw = 1:n()) %>% 
+  pivot_longer(-draw) %>% 
+    mutate(
+    subject = as.integer(str_match(name, "\\[(\\d+),(\\d+)\\]")[,2]),
+    variable = as.integer(str_match(name, "\\[(\\d+),(\\d+)\\]")[,3])
+  ) %>% 
+    group_by(subject,variable) %>% 
+  summarize(post_var = sd(value)^2) %>% 
+  mutate(variable = ifelse(variable == 1, "Slope",
+                           ifelse(variable == 2, "Lapse",
+                                  ifelse(variable == 3, "Threshold",NA))))
+
+
+p1 = inner_join(priorvar, post_sd_sub) %>% 
+  mutate(contraction = 1 - (post_var / prior_variance)) %>% 
+  ggplot(aes(x = subject, y = contraction))+
+  geom_point(alpha = 0.3)+
+  facet_wrap(~variable, scales = "free", labeller = label_both, ncol = 2)+
+  theme_classic()
+
+```
+
+
+```{r, fig.width=12,fig.height=10}
+get_plot = function(variable2, axis_title){
+  
+  if(axis_title){
+    inner_join(priorvar, post_sd_sub) %>% 
+      filter(variable == variable2) %>% 
+      mutate(contraction = 1 - (post_var / prior_variance)) %>% 
+      ggplot(aes(x = subject, y = contraction))+
+      geom_point(alpha = 0.3)+
+      scale_y_continuous(limits = c(0,1))+
+      facet_wrap(~variable, scales = "free", labeller = label_both, ncol = 2)+
+      theme_classic()
+  }else{
+    inner_join(priorvar, post_sd_sub) %>% 
+      filter(variable == variable2) %>% 
+      mutate(contraction = 1 - (post_var / prior_variance)) %>% 
+      ggplot(aes(x = subject, y = contraction))+
+      geom_point(alpha = 0.3)+
+      scale_y_continuous(limits = c(0,1))+
+      facet_wrap(~variable, scales = "free", labeller = label_both, ncol = 2)+
+      theme_classic()+
+      ylab("")
+    
+  }
+
+}
+library(patchwork)
+pp = (get_plot("Slope",T)| get_plot("Threshold",T)) /  (get_plot("Lapse",T) | grouplevel_con+ylab("")+ theme(axis.text.x = element_text(angle = 30, vjust = 0.7, hjust=0.5)))
+
+ggsave(here::here("figures","contraction_subjectlevel_RRST.tiff"), pp, dpi = 300, height = 6, width = 8)
+
+
+
+```
+

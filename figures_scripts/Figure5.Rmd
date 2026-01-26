@@ -4,23 +4,25 @@ output: html_document
 ---
 
 ```{r}
-
-fit <- readRDS(here::here("results","Fit population","RRST_weibull_priors.RDS"))
-
-
+fit <- readRDS(here::here("results","Fit population","RRST_gumbelpriors_n_centered_3000_0.9.RDS"))
+library(tidyverse)
 library(mvtnorm)
+```
+
+
+```{r}
 draws_hp<-
   fit$draws(
-    variables = c('gm','tau_u','L_u','gm_alpha','tau_u_alpha'),
+    variables = c('gm','tau_u','L_u'),
     format = 'df'
     ) %>% 
   rename(
     mu_beta=`gm[1]`,
     mu_lambda=`gm[2]`,
-    mu_alpha=`gm_alpha`,
+    mu_alpha=`gm[3]`,
     tau_beta=`tau_u[1]`,
     tau_lambda=`tau_u[2]`,
-    tau_alpha=`tau_u_alpha`
+    tau_alpha=`tau_u[3]`
   )
 
 draws_p<-
@@ -54,24 +56,28 @@ for(draw in 1:M){
 
   d<-rmvnorm(1,mu,sigma)
   
-  draws_hp$alpha[draw]=exp(d[1])
+  draws_hp$alpha[draw]=d[1]
   draws_hp$beta[draw]=exp(d[2])
   draws_hp$lambda[draw]=0.5/(1+exp(-d[3]))
 }
 
-g<-expand.grid(.draw=1:M,x=seq(0,17,.1))
+g<-expand.grid(.draw=1:M,x=log(seq(0.1,17,.1)))
 
 pfs_ppc<-
   draws_hp %>% 
-  mutate(mu_lambda=0.5/(1+exp(-mu_lambda)),mu_beta=exp(mu_beta),mu_alpha=exp(mu_alpha)) %>% 
+  mutate(mu_lambda=0.5/(1+exp(-mu_lambda)),mu_beta=exp(mu_beta),mu_alpha=(mu_alpha)
+         ) %>% 
   full_join(g) %>% 
+     mutate(
+    x_pct = (exp(x) / 17) * 100
+  ) %>% 
   mutate(
-    g=0.5+(0.5-mu_lambda)*(1-exp(-(x/mu_alpha)^mu_beta)),
-    s=0.5+(0.5-lambda)*(1-exp(-(x/alpha)^beta)),
+    g=0.5+(0.5-mu_lambda)*(1-exp(-10^(mu_beta * (x-mu_alpha)))),
+    s=0.5+(0.5-lambda)*(1-exp(-10^(beta*(x-alpha)))),
     ) %>% 
-  select(g,s,x,.draw) %>%  
-  group_by(x) %>% 
-  summarise(
+  select(g,s,x_pct,.draw,x) %>%  
+  group_by(x_pct,x) %>%
+  summarize(
     s_lb_ci_95=quantile(s,0.025),
     s_ub_ci_95=quantile(s,0.975),
     s_lb_ci_90=quantile(s,0.05),
@@ -84,7 +90,7 @@ pfs_ppc<-
     m_g=quantile(g,0.5),
     lb_g=quantile(g,0.025),
     ub_g=quantile(g,0.975)
-  ) %>%  
+  ) %>% 
   pivot_longer(
     cols = matches("s_(lb|ub)_ci_\\d+"),  # Select only CI columns
     names_to = c("bound", "ci"), 
@@ -101,14 +107,17 @@ pfs_ppc<-
     names_to = "type",
     names_pattern = "(.*)_g",  # Extract "ub", "m", or "lb"
     values_to = "g"
-  )
+  ) 
+
 pfs_ppc$type<-ordered(pfs_ppc$type,levels=c('m','lb','ub'))
+
+
 
 
 pfs_ppc %>% 
   ggplot()+
-  geom_ribbon(aes(x=100*x/17,ymin = s_lb,ymax=s_ub,alpha=ci),fill=rgb(118/255,42/255,131/255))+
-  geom_line(aes(x=100*x/17,y=g,linetype=type),linewidth=1,color=rgb(118/255,42/255,131/255))+
+  geom_ribbon(aes(x=x_pct,ymin = s_lb,ymax=s_ub,alpha=ci),fill=rgb(118/255,42/255,131/255))+
+  geom_line(aes(x=x_pct,y=g,linetype=type),linewidth=1,color=rgb(118/255,42/255,131/255))+
   geom_vline(aes(xintercept = 0),linetype='dotted',color='grey',linewidth=1)+
   scale_linetype_manual(labels=c('Posterior mean','95% CI',''),values = c('solid','dotted','dotted'))+  
   scale_alpha_manual(labels=c('60% CI','80% CI','90% CI','95% CI'),values=c(.4,.3,.2,.1))+
@@ -117,7 +126,7 @@ pfs_ppc %>%
   xlab('% obstruction')+
   ylab('P(correct)')+
   theme_minimal()+
-  coord_cartesian(xlim = c(0, 100))+
+  # coord_cartesian(xlim = c(0, 100))+
   theme(
     text=element_text(size = 12)
     )+
