@@ -128,7 +128,8 @@ df<-full_join(gaussian,gumbel) %>%
     level=factor(level,levels=c('g','s'),labels=c('Group','Participant'))
     )
 
-df %>% 
+hrdt_prior_plot<-
+  df %>% 
   ggplot()+
   geom_ribbon(
     aes(x=x,ymin = lb,ymax=ub,alpha=ci),
@@ -152,7 +153,8 @@ df %>%
   ggtitle('Heart Rate Discrimination Task')+
   facet_grid(rows=vars(level),cols=vars(model))
 
-ggsave('FigurePriorHRDT.tiff',units = 'cm',width = 16,height = 10)
+ggsave('FigurePriorHRDT.tiff',hrdt_prior_plot,units = 'cm',width = 16,height = 10)
+ggsave('FigurePriorHRDT.png',hrdt_prior_plot,units = 'cm',width = 16,height = 10)
 
 ```
 ```{r}
@@ -214,7 +216,8 @@ weibull<-
     level=factor(level,levels=c('g','s'),labels=c('Group','Participant'))
     )
 
-weibull %>% 
+rrst_prior_plot<-
+  weibull %>% 
   ggplot()+
   geom_ribbon(
     aes(x=100*x/17,ymin = lb,ymax=ub,alpha=ci),
@@ -238,7 +241,8 @@ weibull %>%
   ggtitle('Respiratory Resistance Senstitivity Task')+
   facet_grid(rows=vars(level))
 
-ggsave('FigurePriorRRST.tiff',units = 'cm',width = 16,height = 10)
+ggsave('FigurePriorRRST.tiff',rrst_prior_plot,units = 'cm',width = 16,height = 10)
+ggsave('FigurePriorRRST.png',rrst_prior_plot,units = 'cm',width = 16,height = 10)
 
 ```
 
