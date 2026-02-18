@@ -1,0 +1,244 @@
+---
+title: "Figures"
+author: "A.S. Courtin"
+date: "2025-02-26"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(tidyverse)
+library(cmdstanr)
+
+
+source(here::here("scripts","utility.R"))
+```
+
+```{r}
+M<-10^3
+
+g<-expand.grid(.draw=1:M,x=seq(-100,100,.5))
+
+gumbel<-
+  tibble(
+    mu_log_beta=rnorm(M,-1.9,1.3),
+    mu_alpha=rnorm(M,0,50),
+    mu_logit_lambda=rnorm(M,-4,2),
+    tau_log_beta=abs(rnorm(M,0 , 1.3)),
+    tau_alpha=abs(rnorm(M,0 , 50)),
+    tau_logit_lambda =abs(rnorm(M,0 , 2)),
+    .draw=1:M
+  ) %>% 
+  rowwise() %>% 
+  mutate(
+    alpha=rnorm(1,mu_alpha,tau_alpha),
+    beta=exp(rnorm(1,mu_log_beta,tau_log_beta)),
+    lambda=.5/(1+exp(-rnorm(1,mu_logit_lambda,tau_logit_lambda)))
+    ) %>% 
+  full_join(g) %>% 
+  mutate(
+    theta_s=lambda + (1 - 2 * lambda) * (1-exp(-10^(beta * (x-alpha)))),
+    theta_g=.5/(1+exp(-mu_logit_lambda)) + (1 - 2 * .5/(1+exp(-mu_logit_lambda))) * (1-exp(-10^(exp(mu_log_beta) * (x-mu_alpha))))
+    ) %>% 
+  group_by(x) %>% 
+  summarise(
+    s_lb_ci_95=quantile(theta_s,0.025),
+    s_ub_ci_95=quantile(theta_s,0.975),
+    s_lb_ci_90=quantile(theta_s,0.05),
+    s_ub_ci_90=quantile(theta_s,0.95),
+    s_lb_ci_80=quantile(theta_s,0.1),
+    s_ub_ci_80=quantile(theta_s,0.9),
+    s_lb_ci_60=quantile(theta_s,0.20),
+    s_ub_ci_60=quantile(theta_s,0.80),
+    g_lb_ci_95=quantile(theta_g,0.025),
+    g_ub_ci_95=quantile(theta_g,0.975),
+    g_lb_ci_90=quantile(theta_g,0.05),
+    g_ub_ci_90=quantile(theta_g,0.95),
+    g_lb_ci_80=quantile(theta_g,0.1),
+    g_ub_ci_80=quantile(theta_g,0.9),
+    g_lb_ci_60=quantile(theta_g,0.20),
+    g_ub_ci_60=quantile(theta_g,0.80)
+  ) %>% 
+  pivot_longer(
+    cols = matches("(s|g)_(lb|ub)_ci_\\d+"),
+    names_to = c("level","bound", "ci"), 
+    names_pattern = "(s|g)_(lb|ub)_ci_(\\d+)", 
+    values_to = "value"
+  )  %>% 
+  pivot_wider(
+    names_from = "bound",
+    values_from = "value"
+  ) %>% 
+  mutate(model='gumbel')
+  
+gaussian<-tibble(
+  mu_log_beta=rnorm(M,-1.3,1.3),
+  mu_alpha=rnorm(M,0,50),
+  mu_logit_lambda=rnorm(M,-4,2),
+  tau_log_beta=abs(rnorm(M,0 , 1.3)),
+  tau_alpha=abs(rnorm(M,0 , 50)),
+  tau_logit_lambda=abs(rnorm(M,0 , 2)),
+  .draw=1:M
+) %>% 
+  rowwise() %>% 
+  mutate(
+    alpha=rnorm(1,mu_alpha,tau_alpha),
+    beta=exp(rnorm(1,mu_log_beta,tau_log_beta)),
+    lambda=.5/(1+exp(-rnorm(1,mu_logit_lambda,tau_logit_lambda)))
+    ) %>% 
+  full_join(g) %>% 
+  mutate(
+    theta_s=lambda + (1 - 2 * lambda) * pnorm(x,alpha,1/beta),
+    theta_g=.5/(1+exp(-mu_logit_lambda)) + (1 - 2 * .5/(1+exp(-mu_logit_lambda))) * pnorm(x,mu_alpha,1/exp(mu_log_beta))
+    ) %>% 
+  group_by(x) %>% 
+  summarise(
+    s_lb_ci_95=quantile(theta_s,0.025),
+    s_ub_ci_95=quantile(theta_s,0.975),
+    s_lb_ci_90=quantile(theta_s,0.05),
+    s_ub_ci_90=quantile(theta_s,0.95),
+    s_lb_ci_80=quantile(theta_s,0.1),
+    s_ub_ci_80=quantile(theta_s,0.9),
+    s_lb_ci_60=quantile(theta_s,0.20),
+    s_ub_ci_60=quantile(theta_s,0.80),
+    g_lb_ci_95=quantile(theta_g,0.025),
+    g_ub_ci_95=quantile(theta_g,0.975),
+    g_lb_ci_90=quantile(theta_g,0.05),
+    g_ub_ci_90=quantile(theta_g,0.95),
+    g_lb_ci_80=quantile(theta_g,0.1),
+    g_ub_ci_80=quantile(theta_g,0.9),
+    g_lb_ci_60=quantile(theta_g,0.20),
+    g_ub_ci_60=quantile(theta_g,0.80)
+  ) %>% 
+    pivot_longer(
+    cols = matches("(s|g)_(lb|ub)_ci_\\d+"),
+    names_to = c("level","bound", "ci"), 
+    names_pattern = "(s|g)_(lb|ub)_ci_(\\d+)", 
+    values_to = "value"
+  )  %>% 
+  pivot_wider(
+    names_from = "bound",
+    values_from = "value"
+  ) %>% 
+  mutate(model='gaussian')
+
+df<-full_join(gaussian,gumbel) %>% 
+  mutate(
+    model=factor(model,levels=c('gumbel','gaussian'),labels=c('Gumbel','Gaussian')),
+    level=factor(level,levels=c('g','s'),labels=c('Group','Participant'))
+    )
+
+df %>% 
+  ggplot()+
+  geom_ribbon(
+    aes(x=x,ymin = lb,ymax=ub,alpha=ci),
+    fill='#56b4e9'
+    )+
+  geom_vline(
+    aes(xintercept = 0),
+    linetype='dotted',
+    color='grey',
+    linewidth=1
+    )+
+  scale_alpha_manual(labels=c('60% CI','80% CI','90% CI','95% CI'),values=c(.4,.3,.2,.1))+
+  labs(linetype='Group average',alpha='')+
+  xlab('\u0394 BPM')+
+  ylab('P(response="faster")')+
+  theme_minimal()+
+  theme(
+    text=element_text(size = 12)
+    )+
+  coord_cartesian(xlim = c(-100, 100))+
+  ggtitle('Heart Rate Discrimination Task')+
+  facet_grid(rows=vars(level),cols=vars(model))
+
+ggsave('FigurePriorHRDT.tiff',units = 'cm',width = 16,height = 10)
+
+```
+```{r}
+M<-10^3
+
+g<-expand.grid(.draw=1:M,x=seq(0,17,.1))
+
+weibull<-
+  tibble(
+    mu_log_beta=rnorm(M,1.2,1.9),
+    mu_alpha=rnorm(M,1,1),
+    mu_logit_lambda=rnorm(M,-4,2),
+    tau_log_beta=abs(rnorm(M,0 , 1.9)),
+    tau_alpha=abs(rnorm(M,0 , .5)),
+    tau_logit_lambda =abs(rnorm(M,0 , 2)),
+    .draw=1:M
+  ) %>% 
+  rowwise() %>% 
+  mutate(
+    alpha=rnorm(1,mu_alpha,tau_alpha),
+    beta=exp(rnorm(1,mu_log_beta,tau_log_beta)),
+    lambda=.5/(1+exp(-rnorm(1,mu_logit_lambda,tau_logit_lambda)))
+    ) %>% 
+  full_join(g) %>% 
+  mutate(
+    theta_s=lambda + (1 - 2 * lambda) * (1-exp(-10^(beta * (log(x)-alpha)))),
+    theta_g=.5/(1+exp(-mu_logit_lambda)) + (1 - 2 * .5/(1+exp(-mu_logit_lambda))) * (1-exp(-10^(exp(mu_log_beta) * (log(x)-mu_alpha))))
+    ) %>% 
+  group_by(x) %>% 
+  summarise(
+    s_lb_ci_95=quantile(theta_s,0.025),
+    s_ub_ci_95=quantile(theta_s,0.975),
+    s_lb_ci_90=quantile(theta_s,0.05),
+    s_ub_ci_90=quantile(theta_s,0.95),
+    s_lb_ci_80=quantile(theta_s,0.1),
+    s_ub_ci_80=quantile(theta_s,0.9),
+    s_lb_ci_60=quantile(theta_s,0.20),
+    s_ub_ci_60=quantile(theta_s,0.80),
+    g_lb_ci_95=quantile(theta_g,0.025),
+    g_ub_ci_95=quantile(theta_g,0.975),
+    g_lb_ci_90=quantile(theta_g,0.05),
+    g_ub_ci_90=quantile(theta_g,0.95),
+    g_lb_ci_80=quantile(theta_g,0.1),
+    g_ub_ci_80=quantile(theta_g,0.9),
+    g_lb_ci_60=quantile(theta_g,0.20),
+    g_ub_ci_60=quantile(theta_g,0.80)
+  ) %>% 
+  pivot_longer(
+    cols = matches("(s|g)_(lb|ub)_ci_\\d+"),
+    names_to = c("level","bound", "ci"), 
+    names_pattern = "(s|g)_(lb|ub)_ci_(\\d+)", 
+    values_to = "value"
+  )  %>% 
+  pivot_wider(
+    names_from = "bound",
+    values_from = "value"
+  ) %>% 
+    mutate(
+    level=factor(level,levels=c('g','s'),labels=c('Group','Participant'))
+    )
+
+weibull %>% 
+  ggplot()+
+  geom_ribbon(
+    aes(x=100*x/17,ymin = lb,ymax=ub,alpha=ci),
+    fill=rgb(118/255,42/255,131/255)
+    )+
+  geom_vline(
+    aes(xintercept = 0),
+    linetype='dotted',
+    color='grey',
+    linewidth=1
+    )+
+  scale_alpha_manual(labels=c('60% CI','80% CI','90% CI','95% CI'),values=c(.4,.3,.2,.1))+
+  labs(linetype='Group average',alpha='')+
+  xlab('% obstruction')+
+  ylab('P(correct)')+
+  theme_minimal()+
+  coord_cartesian(xlim = c(0, 100))+
+  theme(
+    text=element_text(size = 12)
+    )+
+  ggtitle('Respiratory Resistance Senstitivity Task')+
+  facet_grid(rows=vars(level))
+
+ggsave('FigurePriorRRST.tiff',units = 'cm',width = 16,height = 10)
+
+```
+
