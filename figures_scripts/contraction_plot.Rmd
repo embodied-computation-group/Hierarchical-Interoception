@@ -1,6 +1,6 @@
 ---
 title: "Contraction"
-author: "A.S. Courtin"
+author: "J. Fischer Ehmsen"
 date: "2025-02-26"
 output: html_document
 ---
