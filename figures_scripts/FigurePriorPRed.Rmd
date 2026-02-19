@@ -8,7 +8,6 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 library(tidyverse)
-library(cmdstanr)
 
 
 source(here::here("scripts","utility.R"))
@@ -164,10 +163,10 @@ g<-expand.grid(.draw=1:M,x=seq(0,17,.1))
 
 weibull<-
   tibble(
-    mu_log_beta=rnorm(M,1.2,1.9),
+    mu_log_beta=rnorm(M,2,1),
     mu_alpha=rnorm(M,1,1),
     mu_logit_lambda=rnorm(M,-4,2),
-    tau_log_beta=abs(rnorm(M,0 , 1.9)),
+    tau_log_beta=abs(rnorm(M,0 , 1)),
     tau_alpha=abs(rnorm(M,0 , .5)),
     tau_logit_lambda =abs(rnorm(M,0 , 2)),
     .draw=1:M
