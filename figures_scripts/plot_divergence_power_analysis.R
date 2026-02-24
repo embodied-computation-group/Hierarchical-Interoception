@@ -76,6 +76,7 @@ power_analysis_divergence_summary %>%
   theme_classic()+
   ylim(c(0,1))+
   labs(
+    title='Threshold',
     x='Standardized effect size',
     y='Proportion of datasets with divergence'
     )
@@ -92,6 +93,7 @@ power_analysis_divergence_summary %>%
   theme_classic()+
   ylim(c(0,1))+
   labs(
+    title='Slope',
     x='Standardized effect size',
     y='Proportion of datasets with divergence'
   )
