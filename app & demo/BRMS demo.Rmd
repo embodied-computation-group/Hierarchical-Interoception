@@ -2,7 +2,7 @@
 title: "BRMS demo"
 author: "AS Courtin & J Fischer Ehmsen"
 date: "2025-07-04"
-output: pdf_document
+output: html_document
 ---
 
 ```{r setup, include=FALSE}
