@@ -4,7 +4,7 @@ output: html_document
 ---
 
 ```{r}
-fit <- readRDS(here::here("results","Fit population","RRST_gumbelpriors_n_centered_3000_0.9.RDS"))
+fit <- readRDS(here::here("results","Fit population","RRST_weibull_priors.RDS"))
 library(tidyverse)
 library(mvtnorm)
 ```
@@ -13,16 +13,16 @@ library(mvtnorm)
 ```{r}
 draws_hp<-
   fit$draws(
-    variables = c('gm','tau_u','L_u'),
+    variables = c('gm','tau_u','L_u','gm_alpha','tau_u_alpha'),
     format = 'df'
     ) %>% 
   rename(
     mu_beta=`gm[1]`,
     mu_lambda=`gm[2]`,
-    mu_alpha=`gm[3]`,
+    mu_alpha=`gm_alpha`,
     tau_beta=`tau_u[1]`,
     tau_lambda=`tau_u[2]`,
-    tau_alpha=`tau_u[3]`
+    tau_alpha=`tau_u_alpha`
   )
 
 draws_p<-
@@ -56,24 +56,24 @@ for(draw in 1:M){
 
   d<-rmvnorm(1,mu,sigma)
   
-  draws_hp$alpha[draw]=d[1]
+  draws_hp$alpha[draw]=exp(d[1])
   draws_hp$beta[draw]=exp(d[2])
   draws_hp$lambda[draw]=0.5/(1+exp(-d[3]))
 }
 
-g<-expand.grid(.draw=1:M,x=log(seq(0.1,17,.1)))
+g<-expand.grid(.draw=1:M,x=seq(0.1,17,.1))
 
 pfs_ppc<-
   draws_hp %>% 
-  mutate(mu_lambda=0.5/(1+exp(-mu_lambda)),mu_beta=exp(mu_beta),mu_alpha=(mu_alpha)
+  mutate(mu_lambda=0.5/(1+exp(-mu_lambda)),mu_beta=exp(mu_beta),mu_alpha=exp(mu_alpha)
          ) %>% 
   full_join(g) %>% 
      mutate(
-    x_pct = (exp(x) / 17) * 100
+    x_pct = (x / 17) * 100
   ) %>% 
   mutate(
-    g=0.5+(0.5-mu_lambda)*(1-exp(-10^(mu_beta * (x-mu_alpha)))),
-    s=0.5+(0.5-lambda)*(1-exp(-10^(beta*(x-alpha)))),
+    g=0.5+(0.5-mu_lambda)*(1-exp(-1*(x/mu_alpha)^mu_beta)),
+    s=0.5+(0.5-lambda)*(1-exp(-1*(x/alpha)^beta)),
     ) %>% 
   select(g,s,x_pct,.draw,x) %>%  
   group_by(x_pct,x) %>%
