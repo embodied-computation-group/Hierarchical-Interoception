@@ -163,10 +163,10 @@ g<-expand.grid(.draw=1:M,x=seq(0,17,.1))
 
 weibull<-
   tibble(
-    mu_log_beta=rnorm(M,2,1),
+    mu_log_beta=rnorm(M,1.2,1.9),
     mu_alpha=rnorm(M,1,1),
     mu_logit_lambda=rnorm(M,-4,2),
-    tau_log_beta=abs(rnorm(M,0 , 1)),
+    tau_log_beta=abs(rnorm(M,0 , 1.9)),
     tau_alpha=abs(rnorm(M,0 , .5)),
     tau_logit_lambda =abs(rnorm(M,0 , 2)),
     .draw=1:M
@@ -179,8 +179,8 @@ weibull<-
     ) %>% 
   full_join(g) %>% 
   mutate(
-    theta_s=lambda + (1 - 2 * lambda) * (1-exp(-10^(beta * (log(x)-alpha)))),
-    theta_g=.5/(1+exp(-mu_logit_lambda)) + (1 - 2 * .5/(1+exp(-mu_logit_lambda))) * (1-exp(-10^(exp(mu_log_beta) * (log(x)-mu_alpha))))
+    theta_s=lambda + (1 - 2 * lambda) * (1-exp(-(x/alpha)^beta)),
+    theta_g=.5/(1+exp(-mu_logit_lambda)) + (1 - 2 * .5/(1+exp(-mu_logit_lambda))) * (1-exp(-(x/exp(mu_log_alpha))^exp(mu_log_beta)))
     ) %>% 
   group_by(x) %>% 
   summarise(
