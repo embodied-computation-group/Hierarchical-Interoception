@@ -14,6 +14,7 @@ library(patchwork)
 
 source(here::here("scripts","utility.R"))
 Extero_Normal_mm<-readRDS(here::here("results","Fit population","Extero_Normal_mm.RDS"))
+RRST_weibull_priors<-readRDS(here::here("results","Fit population","RRST_weibull_priors.RDS"))
 
 ```
 
@@ -71,7 +72,8 @@ grouplevel_con = inner_join(post_sd, prior_sd) %>%
   mutate(variable = "Grouplevel") %>% 
   ggplot(aes(x = variable2, y = contraction)) +
   geom_point() +
-  scale_y_continuous(limits = c(0.4,1))+
+  geom_hline(aes(yintercept=1),alpha=.5,linetype='dotted')+
+  geom_hline(aes(yintercept=0),alpha=.5,linetype='dotted')+
   scale_x_discrete(labels = function(x) parse(text = x)) +
   xlab("")+
   theme_classic()+
@@ -168,6 +170,8 @@ p1 = inner_join(priorvar, subject_params) %>%
   mutate(contraction = 1 - (post_var / prior_variance)) %>% 
   ggplot(aes(x = subject, y = contraction))+
   geom_point(alpha = 0.3)+
+  geom_hline(aes(yintercept=1),alpha=.5,linetype='dotted')+
+  geom_hline(aes(yintercept=0),alpha=.5,linetype='dotted')+
   facet_wrap(~variable, scales = "free", labeller = label_both, ncol = 2)+
   theme_classic()
 
@@ -184,7 +188,8 @@ get_plot = function(variable2, axis_title){
       mutate(contraction = 1 - (post_var / prior_variance)) %>% 
       ggplot(aes(x = subject, y = contraction))+
       geom_point(alpha = 0.3)+
-      scale_y_continuous(limits = c(0.4,1))+
+      geom_hline(aes(yintercept=1),alpha=.5,linetype='dotted')+
+      geom_hline(aes(yintercept=0),alpha=.5,linetype='dotted')+
       facet_wrap(~variable, scales = "free", labeller = label_both, ncol = 2)+
       theme_classic()
   }else{
@@ -193,7 +198,8 @@ get_plot = function(variable2, axis_title){
       mutate(contraction = 1 - (post_var / prior_variance)) %>% 
       ggplot(aes(x = subject, y = contraction))+
       geom_point(alpha = 0.3)+
-      scale_y_continuous(limits = c(0.4,1))+
+      geom_hline(aes(yintercept=1),alpha=.5,linetype='dotted')+
+      geom_hline(aes(yintercept=0),alpha=.5,linetype='dotted')+
       facet_wrap(~variable, scales = "free", labeller = label_both, ncol = 2)+
       theme_classic()+
       ylab("")
@@ -201,10 +207,9 @@ get_plot = function(variable2, axis_title){
   }
 
 }
-library(patchwork)
 pp = (get_plot("Slope",T)|get_plot("Slope_dif",F)) /  (get_plot("Threshold",T)|get_plot("Threshold_dif",F)) /  (get_plot("Lapse",T) | grouplevel_con+ylab("")+ theme(axis.text.x = element_text(angle = 30, vjust = 0.7, hjust=0.5)))
 
-ggsave(here::here("figures","contraction_subjectlevel_HRDT.tiff"), pp, dpi = 300, height = 6, width = 8)
+ggsave(here::here("figures","contraction_subjectlevel_HRDT.png"), pp, dpi = 300, height = 6, width = 8)
 
 
 
@@ -213,24 +218,19 @@ ggsave(here::here("figures","contraction_subjectlevel_HRDT.tiff"), pp, dpi = 300
 
 
 ```{r}
-
-RRST_gumbelpriors <- readRDS("~/Hierarchical-Interoception/results/Fit population/RRST_gumbelpriors_n_centered_3000_0.9.RDS")
-
-
-
 n_draws = 10000
 priors <- tibble(
   variable = c(
-    "gm[1]", "gm[2]", "gm[3]",
-    "tau_u[1]", "tau_u[2]", "tau_u[3]"
+    "gm[1]", "gm[2]", "gm_alpha",
+    "tau_u[1]", "tau_u[2]", "tau_u_alpha"
   ),
   mean = c(
-    1.2, -4, -2,
+    2, -4, 1.5,
      0,   0, 0
   ),
   sd = c(
-     1.9, 2, 1,
-     1.9, 2, 1
+     1, 2, .5,
+     1, 2, .5
   )
 )
 
@@ -245,7 +245,7 @@ prior_sd <- draws_df %>%
     .groups = "drop"
   )
 
-post_sd = as_draws_df(RRST_gumbelpriors$draws(c("gm","tau_u"))) %>% select(-contains(".")) %>% 
+post_sd = as_draws_df(RRST_weibull_priors$draws(c("gm","tau_u","gm_alpha","tau_u_alpha"))) %>% select(-contains(".")) %>% 
   pivot_longer(everything()) %>% group_by(name) %>% 
   summarize(post_var = sd(value)^2) %>% 
   rename(variable = name)
@@ -253,10 +253,10 @@ post_sd = as_draws_df(RRST_gumbelpriors$draws(c("gm","tau_u"))) %>% select(-cont
 label_map <- c(
   "gm[1]"    = "μ[Slope]",
   "gm[2]"    = "μ[Lapse]",
-  "gm[3]"    = "μ[Threshold]",
+  "gm_alpha"    = "μ[Threshold]",
   "tau_u[1]" = "σ[Slope]",
   "tau_u[2]" = "σ[Lapse]",
-  "tau_u[3]" = "σ[Threshold]"
+  "tau_u_alpha" = "σ[Threshold]"
 )
 
 grouplevel_con = inner_join(post_sd, prior_sd) %>%
@@ -265,7 +265,8 @@ grouplevel_con = inner_join(post_sd, prior_sd) %>%
   mutate(variable = "Grouplevel") %>% 
   ggplot(aes(x = variable2, y = contraction)) +
   geom_point() +
-  scale_y_continuous(limits = c(0,1))+
+  geom_hline(aes(yintercept=1),alpha=.5,linetype='dotted')+
+  geom_hline(aes(yintercept=0),alpha=.5,linetype='dotted')+
   scale_x_discrete(labels = function(x) parse(text = x)) +
   xlab("")+
   theme_classic()+
@@ -276,41 +277,51 @@ grouplevel_con = inner_join(post_sd, prior_sd) %>%
 ```
 
 ```{r, fig.width=12,fig.height=6}
-
-
 n_draws = 10000
+
 df <- tibble(
   variable = c(
-    "gm[1]", "gm[2]", "gm[3]",
-    "tau_u[1]", "tau_u[2]", "tau_u[3]"
+    "gm[1]", "gm[2]", "gm_alpha",
+    "tau_u[1]", "tau_u[2]", "tau_u_alpha"
   ),
   mean = c(
-    1.2, -4, -2,
-     0,   0, 0
+    2, -4, 1.5,
+    0, 0, 0
   ),
   sd = c(
-     1.9, 2, 1,
-     1.9, 2, 1
+    1, 2, .5,
+    1, 2, .5
   )
 ) %>%
   mutate(
-    p    = as.integer(str_extract(variable, "\\d+")),
-    type = str_extract(variable, "^[a-z_]+")
+    p = case_when(
+      variable == "gm[1]" ~ 1,
+      variable == "gm[2]" ~ 2,
+      variable == "gm_alpha" ~ 3,
+      variable == "tau_u[1]" ~ 1,
+      variable == "tau_u[2]" ~ 2,
+      variable == "tau_u_alpha" ~ 3
+    ),
+    type = case_when(
+      str_detect(variable,"gm") ~ "gm",
+      str_detect(variable,"tau") ~ "tau_u"
+    )
   ) %>%
-  select(p, type, mean, sd) %>%
-  group_by(p, type) %>%
+  select(p,type,mean,sd) %>%
+  group_by(p,type) %>%
   summarise(
-    draw = list(rnorm(n_draws, mean, sd)),
-    .groups = "drop"
+    draw=list(rnorm(n_draws,mean,sd)),
+    .groups="drop"
   ) %>%
   unnest(draw) %>%
-  group_by(p, type) %>%
-  mutate(draw_id = row_number()) %>%
+  group_by(p,type) %>%
+  mutate(draw_id=row_number()) %>%
   ungroup() %>%
   pivot_wider(
-    names_from  = type,
-    values_from = draw
+    names_from=type,
+    values_from=draw
   )
+
 
 priorvar = df %>%
   mutate(
@@ -328,26 +339,50 @@ priorvar = df %>%
 
 
 
-post_sd_sub = as_draws_df(RRST_gumbelpriors$draws(c("param"))) %>% 
-  select(-contains(".")) %>% 
-  mutate(draw = 1:n()) %>% 
-  pivot_longer(-draw) %>% 
-    mutate(
-    subject = as.integer(str_match(name, "\\[(\\d+),(\\d+)\\]")[,2]),
-    variable = as.integer(str_match(name, "\\[(\\d+),(\\d+)\\]")[,3])
-  ) %>% 
-    group_by(subject,variable) %>% 
-  summarize(post_var = sd(value)^2) %>% 
-  mutate(variable = ifelse(variable == 1, "Slope",
-                           ifelse(variable == 2, "Lapse",
-                                  ifelse(variable == 3, "Threshold",NA))))
+post_param =
+  as_draws_df(RRST_weibull_priors$draws("param")) %>%
+  select(-contains(".")) %>%
+  mutate(draw=1:n()) %>%
+  pivot_longer(-draw) %>%
+  mutate(
+    subject=as.integer(str_match(name,"\\[(\\d+),(\\d+)\\]")[,2]),
+    variable=as.integer(str_match(name,"\\[(\\d+),(\\d+)\\]")[,3])
+  )
+
+post_alpha =
+  as_draws_df(RRST_weibull_priors$draws("alpha")) %>%
+  select(-contains(".")) %>%
+  mutate(draw=1:n()) %>%
+  pivot_longer(-draw) %>%
+  mutate(
+    subject=as.integer(str_match(name,"\\[(\\d+)\\]")[,2]),
+    variable=3
+  )
+
+post_sd_sub =
+  bind_rows(post_param,post_alpha) %>%
+  group_by(subject,variable) %>%
+  summarise(
+    post_var=var(value),
+    .groups="drop"
+  ) %>%
+  mutate(
+    variable=recode(as.character(variable),
+      "1"="Slope",
+      "2"="Lapse",
+      "3"="Threshold"
+    )
+  )
 
 
-p1 = inner_join(priorvar, post_sd_sub) %>% 
-  mutate(contraction = 1 - (post_var / prior_variance)) %>% 
-  ggplot(aes(x = subject, y = contraction))+
-  geom_point(alpha = 0.3)+
-  facet_wrap(~variable, scales = "free", labeller = label_both, ncol = 2)+
+p1 =
+  inner_join(priorvar,post_sd_sub,by="variable") %>%
+  mutate(contraction=1-(post_var/prior_variance)) %>%
+  ggplot(aes(x=subject,y=contraction))+
+  geom_point(alpha=0.3)+
+  geom_hline(yintercept=1,alpha=.5,linetype='dotted')+
+  geom_hline(yintercept=0,alpha=.5,linetype='dotted')+
+  facet_wrap(~variable,scales="free",labeller=label_both,ncol=2)+
   theme_classic()
 
 ```
@@ -362,7 +397,8 @@ get_plot = function(variable2, axis_title){
       mutate(contraction = 1 - (post_var / prior_variance)) %>% 
       ggplot(aes(x = subject, y = contraction))+
       geom_point(alpha = 0.3)+
-      scale_y_continuous(limits = c(0,1))+
+      geom_hline(aes(yintercept=1),alpha=.5,linetype='dotted')+
+      geom_hline(aes(yintercept=0),alpha=.5,linetype='dotted')+
       facet_wrap(~variable, scales = "free", labeller = label_both, ncol = 2)+
       theme_classic()
   }else{
@@ -371,7 +407,8 @@ get_plot = function(variable2, axis_title){
       mutate(contraction = 1 - (post_var / prior_variance)) %>% 
       ggplot(aes(x = subject, y = contraction))+
       geom_point(alpha = 0.3)+
-      scale_y_continuous(limits = c(0,1))+
+      geom_hline(aes(yintercept=1),alpha=.5,linetype='dotted')+
+      geom_hline(aes(yintercept=0),alpha=.5,linetype='dotted')+
       facet_wrap(~variable, scales = "free", labeller = label_both, ncol = 2)+
       theme_classic()+
       ylab("")
@@ -379,10 +416,9 @@ get_plot = function(variable2, axis_title){
   }
 
 }
-library(patchwork)
 pp = (get_plot("Slope",T)| get_plot("Threshold",T)) /  (get_plot("Lapse",T) | grouplevel_con+ylab("")+ theme(axis.text.x = element_text(angle = 30, vjust = 0.7, hjust=0.5)))
 
-ggsave(here::here("figures","contraction_subjectlevel_RRST.tiff"), pp, dpi = 300, height = 6, width = 8)
+ggsave(here::here("figures","contraction_subjectlevel_RRST.png"), pp, dpi = 300, height = 6, width = 8)
 
 
 
