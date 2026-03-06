@@ -7,47 +7,71 @@ output: html_document
 source(here::here("scripts","utility.R"))
 library(loo)
 library(tidyverse)
-load(here::here("results","model_and_parameter_recovery.RData"))
+library(patchwork)
 
-model_recovery<-results
+logit<-function(x){
+  y<-log(x/(1-x))
+  return(y)
+}
+```
+
+```{r}
+gu<-readRDS(here::here("results","recovery","Gumbel_datasets.RData"))
+ga<-readRDS(here::here("results","recovery","Gaussian_datasets.RData"))
 
 mod_comp<-tibble(
-  winning_model=rep(NaN,400),
-  generative_model=rep(NaN,400),
-  any_pareto_k=rep(NaN,400),
-  significant=rep(NaN,400),
-  meanrhat=rep(NaN,400),
-  sum_div=rep(NaN,400)
+  winning_model=rep(NaN,200),
+  generative_model=rep(NaN,200),
+  any_pareto_k=rep(NaN,200),
+  significant=rep(NaN,200),
+  meanrhat=rep(NaN,200),
+  sum_div=rep(NaN,200)
   )
-for(idx in 1:400){
-  mr<-model_recovery[idx][[1]][[2]]
-  if(mr$dataset[1]=='gaussian'|mr$dataset[1]=='gumbel'){
-    if(mr$dataset[1]=='gaussian'){
-      mod_comp$generative_model[idx]<-1
-    }else if(mr$dataset[1]=='gumbel'){
-      mod_comp$generative_model[idx]<-2
-    }
+for(idx in 1:100){
+  if(is.list(ga[[idx]])){
+    mr<-ga[idx][[1]][[2]] %>% 
+      filter(variable=='gm[1]')
     
-    mr<-
-      mr%>%
-      filter(mr$models=='gaussian'|mr$models=='gumbel') 
-    
-    if(mr$models[mr$elpd_diff==max(mr$elpd_diff)]=='gaussian'){
+    mod_comp$generative_model[idx]<-1
+  
+    if(mr$models[1]=='Gaussian'){
       mod_comp$winning_model[idx]<-1
-    }else if(mr$models[mr$elpd_diff==max(mr$elpd_diff)]=='gumbel'){
+    }else{
       mod_comp$winning_model[idx]<-2
     }
-    if(max(mr$elpd_diff)==0){
-      mod_comp$significant[idx]<-(min(mr$elpd_diff)/2*mr$se_diff[mr$elpd_diff==min(mr$elpd_diff)])<(-2)
-    }else{
-      mod_comp$significant[idx]<-(min(mr$elpd_diff)+2*mr$se_diff[mr$elpd_diff==min(mr$elpd_diff)])<(max(mr$elpd_diff)-2*mr$se_diff[mr$elpd_diff==max(mr$elpd_diff)])
-    }
+    
+    mod_comp$significant[idx]<-(min(mr$elpd_diff)/2*mr$se_diff[mr$elpd_diff==min(mr$elpd_diff)])<(-2)
+    
+    
+    mod_comp$any_pareto_k[idx]<-sum(mr$pareto_k_over_0.7)>1
+    mod_comp$sum_div[idx]<-sum(mr$mean_div)>0
+    mod_comp$meanrhat[idx]<-mean(mr$meanrhat)>1.01
   }
-  
-  mod_comp$any_pareto_k[idx]<-sum(mr$pareto_k_over_0.7)>1
-  mod_comp$sum_div[idx]<-sum(mr$mean_div)>0
-  mod_comp$meanrhat[idx]<-mean(mr$meanrhat)>1.01
 }
+for(idx in 1:100){
+  mdx=idx+100
+  
+  if(is.list(gu[[idx]])){
+    mr<-gu[idx][[1]][[2]] %>% 
+      filter(variable=='gm[1]')
+    
+    mod_comp$generative_model[mdx]<-2
+  
+    if(mr$models[1]=='Gaussian'){
+      mod_comp$winning_model[mdx]<-1
+    }else{
+      mod_comp$winning_model[mdx]<-2
+    }
+    
+    mod_comp$significant[mdx]<-(min(mr$elpd_diff)/2*mr$se_diff[mr$elpd_diff==min(mr$elpd_diff)])<(-2)
+    
+    
+    mod_comp$any_pareto_k[mdx]<-sum(mr$pareto_k_over_0.7)>1
+    mod_comp$sum_div[mdx]<-sum(mr$mean_div)>0
+    mod_comp$meanrhat[mdx]<-mean(mr$meanrhat)>1.01
+  }
+}
+
 
 mod_comp<-mod_comp %>% filter(sum_div==0,!is.na(winning_model))
 test<-tibble(n=rep(NaN,4),n_sig=rep(NaN,4))
@@ -83,67 +107,39 @@ test %>%
   ggtitle('Model recovery')
 
   
-ggsave(here::here("figures",'Figure3A.tiff'),units = 'cm',width = 7,height = 6.5)
+ggsave(here::here("figures",'Figure3A.png'),units = 'cm',width = 7,height = 6.5)
 
 ```
 
 ```{r}
-truth_gaussian <- read_csv(here::here("simulated_data","model_parameter_recovery","parameter_recovery_gaussian_dataset_information.csv"))
-truth_gaussian$dataset="gaussian"
-
-truth_gumbell <- read_csv(here::here("simulated_data","model_parameter_recovery","parameter_recovery_gumbel_dataset_information.csv"))
-truth_gumbell$dataset="gumbel"
-
-
-truth<-
-  full_join(truth_gaussian,truth_gumbell) %>% 
-  pivot_longer(cols = c(mu_alpha,mu_beta,mu_lambda),names_to = 'variable') %>% 
-  select(variable,value,idx,dataset) %>% 
-  rename(simulated_values = value)
-
-truth$variable[truth$variable=='mu_alpha']='mu_threshold'
-truth$variable[truth$variable=='mu_beta']='mu_slope'
-truth$variable[truth$variable=='mu_lambda']='mu_lapse'
-
-temp<-
-    model_recovery[1][[1]][[1]] %>% 
-    mutate(dataset=as.character(dataset),model=models) %>% 
-    filter(model==dataset)
-combined<-
-  model_recovery[1][[1]][[4]] %>% 
-  mutate(dataset=as.character(dataset)) %>% 
-  filter(str_detect(variable,'mu'),model==dataset) %>% 
-  full_join(temp)
-
-for(idx in 2:400){
-  mr<-
-    model_recovery[idx][[1]][[4]] %>% 
-    mutate(dataset=as.character(dataset)) %>% 
-  filter(str_detect(variable,'mu'),model==dataset)
-  
-  temp<-
-    model_recovery[idx][[1]][[1]] %>% 
-    mutate(dataset=as.character(dataset),model=models) %>% 
-    filter(model==dataset) %>% 
-    full_join(mr)
-  
-
-  
-  if(mr$dataset[1]=='gaussian'|mr$dataset[1]=='gumbel'){
-    combined<-
-      full_join(temp,combined)
+mr_gaussian <- map_dfr(1:100, function(idx){
+  if(is.list(ga[[idx]])){
+      md<-ga[idx][[1]][[2]] %>% filter(variable=='gm[1]',models=='Gaussian')
+      if(md$mean_div==0){
+        ga[[idx]][[3]][[2]] %>%
+        mutate(idx = idx,dataset='gaussian')
+      }
+    }
   }
-}
+)
+mr_gumbel <- map_dfr(1:100, function(idx){
+  if(is.list(gu[[idx]])){
+      md<-gu[idx][[1]][[2]] %>% filter(variable=='gm[1]',models=='Gumbel')
+      if(md$mean_div==0){
+        gu[[idx]][[4]][[2]] %>%
+        mutate(idx = idx+100,dataset='gumbel')
+      }
+    }
+  }
+)
 
-combined<-
-  combined%>% mutate(simulated_values = NULL) %>% 
-  filter(model==dataset) %>% 
-  full_join(truth) %>% 
-  filter(meanrhat<=1.01,mean_div==0) %>% 
-  mutate(recovered=simulated_values>q5&simulated_values<q95)
+mr_all <- bind_rows(mr_gaussian, mr_gumbel)%>%
+  mutate(recovered=simulated>q5&simulated<q95)
 
-recovery_rate<-combined %>% 
-  group_by(dataset,variable) %>% 
+recovery_rate<-
+  mr_all %>% 
+  filter(!is.na(q5)) %>% 
+  group_by(variable,dataset) %>% 
   summarise(
     n=sum(!is.na(recovered)),
     recovery_rate=mean(recovered),
@@ -151,14 +147,15 @@ recovery_rate<-combined %>%
     ub=qbeta(.95,1+recovery_rate*n,1+(1-recovery_rate)*n)
     )
 
-combined<-combined %>% 
+combined<-
+  mr_all %>% 
   full_join(recovery_rate)
 
 combined %>% 
-  filter(variable=='mu_threshold') %>% 
+  filter(variable=='mu_alpha') %>% 
   ggplot()+
   geom_abline(aes(intercept = 0,slope=1))+
-  geom_linerange(aes(x=simulated_values,ymin=q5,ymax=q95,color=dataset))+
+  geom_linerange(aes(x=simulated,ymin=q5,ymax=q95,color=dataset))+
   geom_text(aes(x=25,y=-40+10*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
   theme_minimal()+
   scale_color_manual(values = c('#0072B2','#E69F00'))+
@@ -168,14 +165,14 @@ combined %>%
   ggtitle('Group mean threshold')
 
 
-ggsave(here::here("figures",'Figure3B.tiff'),units = 'cm',width = 8,height = 6.5)
+ggsave(here::here("figures",'Figure3B.png'),units = 'cm',width = 8,height = 6.5)
 
 combined %>% 
-  filter(variable=='mu_slope') %>% 
+  filter(variable=='mu_beta') %>% 
   ggplot()+
   geom_abline(aes(intercept = 0,slope=1))+
-  geom_linerange(aes(x=simulated_values,ymin=q5,ymax=q95,color=dataset))+
-  geom_text(aes(x=-1,y=-3+.35*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  geom_linerange(aes(x=simulated,ymin=q5,ymax=q95,color=dataset))+
+  geom_text(aes(x=-2.5,y=-1+.35*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
   theme_minimal()+
   scale_color_manual(values = c('#0072B2','#E69F00'))+
   theme(legend.position = 'none')+
@@ -184,55 +181,37 @@ combined %>%
   ggtitle('Group mean log(slope)')
 
 
-ggsave(here::here("figures",'Figure3C.tiff'),units = 'cm',width = 8,height = 6.5)
+ggsave(here::here("figures",'Figure3C.png'),units = 'cm',width = 8,height = 6.5)
 
 combined %>% 
-  filter(variable=='mu_slope') %>% 
+  filter(variable=='mu_lambda') %>% 
   ggplot()+
   geom_abline(aes(intercept = 0,slope=1))+
-  geom_linerange(aes(x=exp(simulated_values),ymin=exp(q5),ymax=exp(q95),color=dataset))+
-  geom_text(aes(x=0.7,y=0.05+.05*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  geom_linerange(aes(x=simulated,ymin=q5,ymax=q95,color=dataset))+
+  geom_text(aes(x=-3,y=-10+.8*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
   theme_minimal()+
   scale_color_manual(values = c('#0072B2','#E69F00'))+
   theme(legend.position = 'none')+
   xlab('Ground truth')+
   ylab('Estimate')+
-  ggtitle('Group mean slope')
-
-
-ggsave(here::here("figures",'Figure3C_alt.tiff'),units = 'cm',width = 8,height = 6.5)
-
-combined %>% 
-  filter(variable=='mu_lapse') %>% 
-  ggplot()+
-  geom_abline(aes(intercept = 0,slope=1))+
-  geom_linerange(aes(x=simulated_values,ymin=q5,ymax=q95,color=dataset))+
-  geom_text(aes(x=-2.5,y=-10+.8*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
-  theme_minimal()+
-  scale_color_manual(values = c('#0072B2','#E69F00'))+
-  theme(legend.position = 'none')+
-  xlab('Ground truth')+
-  ylab('Estimate')+
-  ggtitle('Group mean lapse')+
+  ggtitle('Group mean half-logit(lapse)')+
   ylim(c(-10,0))
 
-ggsave(here::here("figures",'Figure3D.tiff'),units = 'cm',width = 8,height = 6.5)
+ggsave(here::here("figures",'Figure3D.png'),units = 'cm',width = 8,height = 6.5)
 
 combined %>% 
-  filter(variable=='mu_lapse') %>% 
+  filter(variable%in%c('tau_alpha','tau_beta','tau_lambda')) %>% 
   ggplot()+
   geom_abline(aes(intercept = 0,slope=1))+
-  geom_linerange(aes(x=inv_logit(simulated_values),ymin=inv_logit(q5),ymax=inv_logit(q95),color=dataset))+
-  # geom_text(aes(x=-2.5,y=-10+.8*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  geom_linerange(aes(x=simulated,ymin=q5,ymax=q95,color=dataset))+
   theme_minimal()+
   scale_color_manual(values = c('#0072B2','#E69F00'))+
   theme(legend.position = 'none')+
   xlab('Ground truth')+
   ylab('Estimate')+
-  ggtitle('Group mean lapse')
-  # ylim(c(-10,0))
+  facet_wrap(variable~.,scales = 'free')
 
-ggsave(here::here("figures",'Figure3D_alt.tiff'),units = 'cm',width = 8,height = 6.5)
+ggsave(here::here("figures",'FigureRecoveryTaus.png'),units = 'cm',width = 18,height = 8)
 ```
 
 
@@ -240,79 +219,36 @@ ggsave(here::here("figures",'Figure3D_alt.tiff'),units = 'cm',width = 8,height =
 ## subject level parameter recovery:
 
 ```{r}
-source(here::here("scripts","utility.R"))
-library(loo)
-library(tidyverse)
-load(here::here("results","model_and_parameter_recovery.RData"))
-
-model_recovery<-results
-
-truth_gaussian <- read_csv(here::here("simulated_data","model_parameter_recovery","subject_level",
-                                      "R_gaussian_50_80_all_participant_information.csv")) %>% 
-  group_by(idx) %>% 
-  mutate(id = 1:n())
-
-truth_gaussian$dataset="gaussian"
-
-truth_gumbell <- read_csv(here::here("simulated_data","model_parameter_recovery","subject_level",
-                                     "R_gumbel_50_80_all_participant_information.csv")) %>% 
-  group_by(idx) %>% 
-  mutate(id = 1:n())
-
-truth_gumbell$dataset="gumbel"
-
-
-truth<-
-  full_join(truth_gaussian,truth_gumbell) %>% 
-  pivot_longer(cols = c(alpha,beta,lambda),names_to = 'variable') %>% 
-  select(variable,value,idx,dataset,id) %>% 
-  rename(simulated_values = value) %>% 
-  mutate(variable = ifelse(variable == "alpha","threshold",ifelse(variable == "beta","slope",ifelse(variable == "lambda","lapse",NA))))
-
-temp<-
-    model_recovery[1][[1]][[1]] %>% 
-    mutate(dataset=as.character(dataset),model=models) %>% 
-    filter(model==dataset)
-
-
-combined<-
-  model_recovery[1][[1]][[3]] %>% 
-  mutate(dataset=as.character(dataset)) %>% 
-  filter(model==dataset) %>% 
-  full_join(temp)
-
-
-
-for(idx in 2:400){
-  mr<-
-    model_recovery[idx][[1]][[3]] %>% 
-    mutate(dataset=as.character(dataset)) %>% 
-  filter(model==dataset)
-  
-  temp<-
-    model_recovery[idx][[1]][[1]] %>% 
-    mutate(dataset=as.character(dataset),model=models) %>% 
-    filter(model==dataset) %>% 
-    full_join(mr)
-  
-
-  
-  if(mr$dataset[1]=='gaussian'|mr$dataset[1]=='gumbel'){
-    combined<-
-      full_join(temp,combined)
+mr_gaussian <- map_dfr(1:100, function(idx){
+    if(is.list(ga[[idx]])){
+      md<-ga[idx][[1]][[2]] %>% filter(variable=='gm[1]',models=='Gaussian')
+      if(md$mean_div==0){
+        ga[[idx]][[3]][[1]] %>%
+        mutate(idx = idx,dataset='gaussian')
+      }
+    }
   }
-}
+)
+mr_gumbel <- map_dfr(1:100, function(idx){
+    if(is.list(gu[[idx]])){
+      md<-gu[idx][[1]][[2]] %>% filter(variable=='gm[1]',models=='Gumbel')
+      if(md$mean_div==0){
+        gu[[idx]][[4]][[1]] %>%
+        mutate(idx = idx+100,dataset='gumbel')
+      }
+    }
+  }
+)
 
-temp <-
-  combined%>% mutate(id = as.numeric(id)) %>% 
-  filter(model==dataset) %>% 
-  select(-c(model,models)) %>%
-  full_join(truth) %>% 
-  filter(meanrhat<=1.01,mean_div==0) %>% 
-  mutate(recovered=simulated_values>q5&simulated_values<q95)
+mr_all <- bind_rows(mr_gaussian, mr_gumbel) %>% 
+  mutate(participant=as.numeric(participant))%>% 
+  mutate(recovered=simulated>q5&simulated<q95)
 
-recovery_rate<-temp %>% 
-  group_by(dataset,variable) %>% 
+
+recovery_rate<-
+  mr_all %>% 
+  filter(!is.na(q5)) %>% 
+  group_by(variable,dataset) %>% 
   summarise(
     n=sum(!is.na(recovered)),
     recovery_rate=mean(recovered),
@@ -320,64 +256,61 @@ recovery_rate<-temp %>%
     ub=qbeta(.95,1+recovery_rate*n,1+(1-recovery_rate)*n)
     )
 
-combined<-temp %>% 
+combined<-
+  mr_all %>% 
   full_join(recovery_rate)
 
-
-
-threshold = combined %>% 
-  filter(variable=='threshold') %>% 
+a<-
+  combined %>% 
+  filter(variable=='alpha') %>% 
   ggplot()+
   geom_abline(aes(intercept = 0,slope=1))+
-  geom_linerange(aes(x=simulated_values,ymin=q5,ymax=q95,color=dataset))+
-  geom_text(aes(x=-100,y=100+50*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  geom_linerange(aes(x=simulated,ymin=q5,ymax=q95,color=dataset),alpha=.5)+
+  geom_text(aes(x=-25,y=50+10*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset),size=2)+
   theme_minimal()+
   scale_color_manual(values = c('#0072B2','#E69F00'))+
   theme(legend.position = 'none')+
   xlab('Ground truth')+
   ylab('Estimate')+
-  ggtitle('Subject level threshold')
+  ggtitle('Threshold')
 
-
-# ggsave(here::here("figures",'ss_Figure3B.tiff'),units = 'cm',width = 8,height = 6.5)
-
-slope = combined %>% 
-  filter(variable=='slope') %>% 
+b<-
+  combined %>% 
+  filter(variable=='beta') %>% 
   ggplot()+
   geom_abline(aes(intercept = 0,slope=1))+
-  geom_linerange(aes(x=log(simulated_values),ymin=log(q5),ymax=log(q95),color=dataset))+
-  geom_text(aes(x=-4.5,y=1+1.5*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  geom_linerange(aes(x=log(simulated),ymin=log(q5),ymax=log(q95),color=dataset),alpha=.5)+
+  geom_text(aes(x=-3,y=5+2*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset),size=2)+
   theme_minimal()+
   scale_color_manual(values = c('#0072B2','#E69F00'))+
   theme(legend.position = 'none')+
   xlab('Ground truth')+
   ylab('Estimate')+
-  ggtitle('Subject level slope')
+  ggtitle('log(slope)')
 
-
-# ggsave(here::here("figures",'ss_Figure3C.tiff'),units = 'cm',width = 8,height = 6.5)
-
-lapse = combined %>% 
-  filter(variable=='lapse') %>% 
+l<-
+  combined %>% 
+  filter(variable=='lambda') %>%
   ggplot()+
   geom_abline(aes(intercept = 0,slope=1))+
-  geom_linerange(aes(x=brms::logit_scaled(simulated_values),ymin=brms::logit_scaled(q5),ymax=brms::logit_scaled(q95),color=dataset))+
-  geom_text(aes(x=-11,y=-0.5+2*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset))+
+  geom_linerange(aes(x=logit(2*simulated),ymin=logit(2*q5),ymax=logit(2*q95),color=dataset),alpha=.5)+
+  geom_text(aes(x=-8,y=2+2*as.numeric(dataset=='gaussian'),label=sprintf("%.2f [%.2f - %.2f]",round(recovery_rate,2),round(lb,2),round(ub,2)),color=dataset),size=2)+
   theme_minimal()+
   scale_color_manual(values = c('#0072B2','#E69F00'))+
   theme(legend.position = 'none')+
   xlab('Ground truth')+
   ylab('Estimate')+
-  ggtitle('Subject level lapse')
-
-# ggsave(here::here("figures",'ss_Figure3D.tiff'),units = 'cm',width = 8,height = 6.5)
-```
+  ggtitle('logit(lapse rate)')
 
 
-```{r, fig.height=7.2,fig.width=7.2}
-library(patchwork)
-threshold / slope / lapse
-ggsave(here::here("figures",'supp_ss_recov_scale.tiff'),units = 'in',width = 7.2,height = 7.2)
-
+fig_recovery <- a + b + l
+print(fig_recovery)
+ggsave(
+  here::here("figures","FigureSubjectRecov.png"),
+  fig_recovery,
+  units = "cm",
+  width = 18,
+  height = 8
+)
 
 ```
