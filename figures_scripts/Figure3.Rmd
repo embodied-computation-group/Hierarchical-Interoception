@@ -112,6 +112,102 @@ ggsave(here::here("figures",'Figure3A.png'),units = 'cm',width = 7,height = 6.5)
 ```
 
 ```{r}
+gu<-readRDS(here::here("results","recovery","Gumbel_datasets.RData"))
+ga<-readRDS(here::here("results","recovery","Gaussian_datasets.RData"))
+
+mod_comp<-tibble(
+  winning_model=rep(NaN,200),
+  generative_model=rep(NaN,200),
+  any_pareto_k=rep(NaN,200),
+  significant=rep(NaN,200),
+  meanrhat=rep(NaN,200),
+  sum_div=rep(NaN,200)
+  )
+for(idx in 1:100){
+  if(is.list(ga[[idx]])){
+    mr<-ga[idx][[1]][[2]] %>% 
+      filter(variable=='gm[1]')
+    
+    mod_comp$generative_model[idx]<-1
+  
+    if(mr$models[1]=='Gaussian'){
+      mod_comp$winning_model[idx]<-1
+    }else{
+      mod_comp$winning_model[idx]<-2
+    }
+    
+    mod_comp$significant[idx]<-(min(mr$elpd_diff)/2*mr$se_diff[mr$elpd_diff==min(mr$elpd_diff)])<(-2)
+    
+    
+    mod_comp$any_pareto_k[idx]<-sum(mr$pareto_k_over_0.7)>1
+    mod_comp$sum_div[idx]<-sum(mr$mean_div)>0
+    mod_comp$meanrhat[idx]<-mean(mr$meanrhat)>1.01
+  }
+}
+for(idx in 1:100){
+  mdx=idx+100
+  
+  if(is.list(gu[[idx]])){
+    mr<-gu[idx][[1]][[2]] %>% 
+      filter(variable=='gm[1]')
+    
+    mod_comp$generative_model[mdx]<-2
+  
+    if(mr$models[1]=='Gaussian'){
+      mod_comp$winning_model[mdx]<-1
+    }else{
+      mod_comp$winning_model[mdx]<-2
+    }
+    
+    mod_comp$significant[mdx]<-(min(mr$elpd_diff)/2*mr$se_diff[mr$elpd_diff==min(mr$elpd_diff)])<(-2)
+    
+    
+    mod_comp$any_pareto_k[mdx]<-sum(mr$pareto_k_over_0.7)>1
+    mod_comp$sum_div[mdx]<-sum(mr$mean_div)>0
+    mod_comp$meanrhat[mdx]<-mean(mr$meanrhat)>1.01
+  }
+}
+
+
+mod_comp<-mod_comp %>% filter(!is.na(winning_model))
+test<-tibble(n=rep(NaN,4),n_sig=rep(NaN,4))
+for(gen in 1:2){
+  for(win in 1:2){
+    test$generative_model[win+(gen-1)*2]=gen
+    test$winning_model[win+(gen-1)*2]=win
+    test$n[win+(gen-1)*2]=sum(mod_comp$winning_model[mod_comp$generative_model==gen]==win)
+    test$n_sig[win+(gen-1)*2]=sum(mod_comp$winning_model[mod_comp$generative_model==gen & mod_comp$significant==1]==win)
+    test$n_tot[win+(gen-1)*2]=sum(mod_comp$generative_model==gen)
+  }
+}
+
+test<-test %>%
+  mutate(
+    prop=n/n_tot,
+    prop_sig=n_sig/n_tot,
+    prop_lb=qbeta(.05,1+n,1+n_tot-n),
+    prop_ub=qbeta(.95,1+n,1+n_tot-n)
+    )
+test %>% 
+  ggplot()+
+  geom_tile(aes(x=as.factor(generative_model),y=as.factor(winning_model),fill=n/n_tot))+
+  geom_text(aes(x=as.factor(generative_model),y=as.factor(winning_model),label=paste0(round(prop,2),'\n[',round(prop_lb,2),' - ',round(prop_ub,2),']')),color=rgb(.4,.4,.4))+
+  xlab('Generative model')+
+  ylab('Winning model')+
+  theme_minimal()+
+  theme(legend.position = 'none',
+         axis.text.y = element_text(angle = 90,hjust=0.5))+
+  scale_x_discrete(breaks=1:2,labels = c('Gaussian','Gumbel'))+
+  scale_y_discrete(breaks=1:2,labels = c('Gaussian','Gumbel'))+
+  scale_fill_gradient(low = "black", high = "white",limits=c(0,1))+
+  ggtitle('Model recovery')
+
+  
+ggsave(here::here("figures",'Figure3A_with_div.png'),units = 'cm',width = 7,height = 6.5)
+
+```
+
+```{r}
 mr_gaussian <- map_dfr(1:100, function(idx){
   if(is.list(ga[[idx]])){
       md<-ga[idx][[1]][[2]] %>% filter(variable=='gm[1]',models=='Gaussian')
