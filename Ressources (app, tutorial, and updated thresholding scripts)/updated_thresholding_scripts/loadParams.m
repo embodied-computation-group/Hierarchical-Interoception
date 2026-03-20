@@ -9,7 +9,8 @@
 % Last edit of the original script: 08/06/2021
 
 % Edited by Arthur S. Courtin on the 20/03/2026 to add empirically informed
-% priors.
+% priors. If you use this version of the script, please cite both 
+% https://doi.org/10.1101/2025.08.27.672360 and 10.1016/j.biopsycho.2022.108325
 
 %% RRST device port
 % To determine which serial port the device is connected on,
