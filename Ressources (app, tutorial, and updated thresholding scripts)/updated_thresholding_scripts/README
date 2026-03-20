@@ -1,0 +1,14 @@
+Author: Arthur S. Courtin
+
+This folder contains updated versions of the parameters.py script from the HRD 
+toolbox and the loadParams.m script from the RRST toolbox.
+
+The parameter ranges used by the adaptive thresholding algorithm, as well as the 
+prior density in case of the RRST, have been updated based on the VMP dataset 
+refit presented in: https://doi.org/10.1101/2025.08.27.672360
+
+To use these updated scripts, replace the original files in their respective 
+toolbox directories with the versions provided here.
+
+If you use these scripts, please cite https://doi.org/10.1101/2025.08.27.672360
+in addition to the original paper introducing the task.

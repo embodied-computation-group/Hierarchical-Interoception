@@ -1,0 +1,22 @@
+
+## Here we showcase the mathematical rationale of why the spread of the weibull function is defined by both the alpha and beta parameter
+
+Here is it's equation for the spread of a Weibull function: 
+
+$$
+\alpha \cdot \left( \left( -log \left(1 - \frac{1 - \lambda - \delta - \gamma}{1 - \gamma - \lambda} \right) \right)^\frac{1}{\beta}-\left(-log\left(1 - \frac{\delta}{1 - \gamma - \lambda}\right)\right) ^ \frac{1}{\beta} \right)
+$$
+
+
+Knowing the guess rate gamma is 0.5 by design and making the assumptions no lapse occurs, we can simplify to: 
+$$
+\alpha \cdot \left( (-log(2\cdot\delta))^\frac{1}{\beta}-(-log(1 - 2 \cdot\delta)) ^ \frac{1}{\beta}\right)
+$$
+
+
+If we then set the spread defining threshold delta to 5%, we can further simplify the expression: 
+$$
+\alpha \cdot \left( (-log(0.1))^\frac{1}{\beta}-(-log(0.9)) ^ \frac{1}{\beta}\right)
+$$
+
+From these equations, it is easy to see that the spread scales linearly with the threshold parameter alpha. As a consequence, if alpha changes and beta is constant, the spread changes. In some cases, changes in beta do not reflect a change of spread but rather a compensation of the effect of alpha on the spread.

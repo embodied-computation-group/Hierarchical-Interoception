@@ -39,19 +39,19 @@ M=max(draws_hp$.draw)
 for(draw in 1:M){
   omega<-
     draws_p %>% 
-    filter(.draw==round(runif(1,1,))) %>% 
+    filter(.draw==draw) %>% 
     select(alpha,beta,lapse) %>% 
     cor()
   tau<-c(
-    draws_hp$tau_alpha[round(runif(1,1,M))],
-    draws_hp$tau_beta[round(runif(1,1,M))],
-    draws_hp$tau_lambda[round(runif(1,1,M))]
+    draws_hp$tau_alpha[draw],
+    draws_hp$tau_beta[draw],
+    draws_hp$tau_lambda[draw]
     )
   sigma<-diag(tau)%*%omega%*%diag(tau)
   mu<-c(
-    draws_hp$mu_alpha[round(runif(1,1,M))],
-    draws_hp$mu_beta[round(runif(1,1,M))],
-    draws_hp$mu_lambda[round(runif(1,1,M))]
+    draws_hp$mu_alpha[draw],
+    draws_hp$mu_beta[draw],
+    draws_hp$mu_lambda[draw]
     )
 
   d<-rmvnorm(1,mu,sigma)
@@ -132,5 +132,5 @@ pfs_ppc %>%
     )+
   ggtitle('Respiratory Resistance Senstitivity Task (N=267)')
 
-ggsave('Figure5.tiff',units = 'cm',width = 16,height = 8)
+ggsave('Figure5.png',units = 'cm',width = 16,height = 8)
 ```
