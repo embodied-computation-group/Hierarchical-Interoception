@@ -73,7 +73,7 @@ for(idx in 1:100){
 }
 
 
-mod_comp<-mod_comp %>% filter(sum_div==0,!is.na(winning_model))
+mod_comp<-mod_comp %>% filter(sum_div==0,!is.na(generative_model))
 test<-tibble(n=rep(NaN,4),n_sig=rep(NaN,4))
 for(gen in 1:2){
   for(win in 1:2){
@@ -211,7 +211,7 @@ ggsave(here::here("figures",'Figure3A_with_div.png'),units = 'cm',width = 7,heig
 mr_gaussian <- map_dfr(1:100, function(idx){
   if(is.list(ga[[idx]])){
       md<-ga[idx][[1]][[2]] %>% filter(variable=='gm[1]',models=='Gaussian')
-      if(md$mean_div==0){
+      if(md$mean_div==0 & !any(ga[[idx]][[3]][[2]]$rhat>1.05)){
         ga[[idx]][[3]][[2]] %>%
         mutate(idx = idx,dataset='gaussian')
       }
@@ -221,13 +221,16 @@ mr_gaussian <- map_dfr(1:100, function(idx){
 mr_gumbel <- map_dfr(1:100, function(idx){
   if(is.list(gu[[idx]])){
       md<-gu[idx][[1]][[2]] %>% filter(variable=='gm[1]',models=='Gumbel')
-      if(md$mean_div==0){
+      if(md$mean_div==0 & !any(gu[[idx]][[4]][[2]]$rhat>1.05)){
         gu[[idx]][[4]][[2]] %>%
         mutate(idx = idx+100,dataset='gumbel')
       }
     }
   }
 )
+
+n_d_ga<-length(unique(mr_gaussian$idx))
+n_d_gu<-length(unique(mr_gumbel$idx))
 
 mr_all <- bind_rows(mr_gaussian, mr_gumbel)%>%
   mutate(recovered=simulated>q5&simulated<q95)
@@ -316,9 +319,9 @@ ggsave(here::here("figures",'FigureRecoveryTaus.png'),units = 'cm',width = 18,he
 
 ```{r}
 mr_gaussian <- map_dfr(1:100, function(idx){
-    if(is.list(ga[[idx]])){
+  if(is.list(ga[[idx]])){
       md<-ga[idx][[1]][[2]] %>% filter(variable=='gm[1]',models=='Gaussian')
-      if(md$mean_div==0){
+      if(md$mean_div==0 & !any(ga[[idx]][[3]][[2]]$rhat>1.05)){
         ga[[idx]][[3]][[1]] %>%
         mutate(idx = idx,dataset='gaussian')
       }
@@ -326,15 +329,18 @@ mr_gaussian <- map_dfr(1:100, function(idx){
   }
 )
 mr_gumbel <- map_dfr(1:100, function(idx){
-    if(is.list(gu[[idx]])){
+  if(is.list(gu[[idx]])){
       md<-gu[idx][[1]][[2]] %>% filter(variable=='gm[1]',models=='Gumbel')
-      if(md$mean_div==0){
+      if(md$mean_div==0 & !any(gu[[idx]][[4]][[2]]$rhat>1.05)){
         gu[[idx]][[4]][[1]] %>%
         mutate(idx = idx+100,dataset='gumbel')
       }
     }
   }
 )
+
+n_d_ga<-length(unique(mr_gaussian$idx))
+n_d_gu<-length(unique(mr_gumbel$idx))
 
 mr_all <- bind_rows(mr_gaussian, mr_gumbel) %>% 
   mutate(participant=as.numeric(participant))%>% 
