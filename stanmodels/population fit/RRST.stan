@@ -1,14 +1,14 @@
 functions{
   
   real psycho(real X, real alpha, real beta, real lapse){
-   if(X == 999){
-     return(0.5);
-   }else{
-    return((0.5) + (1 - (0.5) - (inv_logit(lapse) / 2)) .* (1-exp(-10^(exp(beta)*(X-alpha)))));
-   }
+   return ((0.5) + (1 - (0.5) - (inv_logit(lapse) / 2)) .* (1-exp(-(X/exp(alpha))^exp(beta))));
+}
+
+    
   
+
 }
-}
+
 
 data{
 
@@ -25,7 +25,7 @@ data{
 
 }
 transformed data{
-  int<lower=1> N=3; //Number of free parameters
+  int<lower=1> N=2; //Number of free parameters
 
 }
 parameters{
@@ -38,6 +38,9 @@ parameters{
 
   matrix[N, S] z_expo;    // Participant deviation from the group means
   
+  real gm_alpha;
+  real<lower=0> tau_u_alpha;
+  vector[S] alpha;
 }
 
 transformed parameters{
@@ -56,7 +59,6 @@ transformed parameters{
   
   vector[S] beta = param[,1];
   vector[S] lapse = param[,2];
-  vector[S] alpha = param[,3];
   
   
   
@@ -65,27 +67,24 @@ transformed parameters{
 model{
   // Defining priors.
 
-    gm[1] ~ normal(1.2,1.9); //global mean of beta
+    gm[1] ~ normal(2,1); //global mean of beta
     
     gm[2] ~ normal(-4, 2); //global mean of lapse
     
-    gm[3] ~ normal(-2, 1); //global mean of lapse
-    
-    // gm_alpha ~ normal(-2,1); //global mean of beta
+    gm_alpha ~ normal(1.5,0.5); //global mean of beta
     
   
     L_u ~ lkj_corr_cholesky(2);
     
     to_vector(z_expo) ~ std_normal();
     
-    tau_u[1] ~ normal(0 , 1.9);
+    tau_u[1] ~ normal(0 , 1);
     tau_u[2] ~ normal(0 , 2);
-    tau_u[3] ~ normal(0 , 1);
     
-    // tau_u_alpha ~ normal(0 , 1);
+    tau_u_alpha ~ normal(0 , 0.5);
     
 
-    // alpha ~ normal(gm_alpha , tau_u_alpha);
+    alpha ~ normal(gm_alpha , tau_u_alpha);
   
 
   for (n in 1:T){

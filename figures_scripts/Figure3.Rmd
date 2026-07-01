@@ -24,56 +24,60 @@ mod_comp<-tibble(
   generative_model=rep(NaN,200),
   any_pareto_k=rep(NaN,200),
   significant=rep(NaN,200),
-  meanrhat=rep(NaN,200),
+  any_bad_rhat=rep(NaN,200),
   sum_div=rep(NaN,200)
   )
 for(idx in 1:100){
   if(is.list(ga[[idx]])){
-    mr<-ga[idx][[1]][[2]] %>% 
+    mr<-ga[idx][[1]][[2]] %>%
       filter(variable=='gm[1]')
-    
+
     mod_comp$generative_model[idx]<-1
-  
+
     if(mr$models[1]=='Gaussian'){
       mod_comp$winning_model[idx]<-1
     }else{
       mod_comp$winning_model[idx]<-2
     }
-    
+
     mod_comp$significant[idx]<-(min(mr$elpd_diff)/2*mr$se_diff[mr$elpd_diff==min(mr$elpd_diff)])<(-2)
-    
-    
+
+
     mod_comp$any_pareto_k[idx]<-sum(mr$pareto_k_over_0.7)>1
     mod_comp$sum_div[idx]<-sum(mr$mean_div)>0
-    mod_comp$meanrhat[idx]<-mean(mr$meanrhat)>1.01
+    all_rhats<-c(ga[[idx]][[3]][[2]]$rhat,ga[[idx]][[4]][[2]]$rhat,
+                 ga[[idx]][[3]][[1]]$rhat,ga[[idx]][[4]][[1]]$rhat)
+    mod_comp$any_bad_rhat[idx]<-any(all_rhats>1.05,na.rm=TRUE)
   }
 }
 for(idx in 1:100){
   mdx=idx+100
-  
+
   if(is.list(gu[[idx]])){
-    mr<-gu[idx][[1]][[2]] %>% 
+    mr<-gu[idx][[1]][[2]] %>%
       filter(variable=='gm[1]')
-    
+
     mod_comp$generative_model[mdx]<-2
-  
+
     if(mr$models[1]=='Gaussian'){
       mod_comp$winning_model[mdx]<-1
     }else{
       mod_comp$winning_model[mdx]<-2
     }
-    
+
     mod_comp$significant[mdx]<-(min(mr$elpd_diff)/2*mr$se_diff[mr$elpd_diff==min(mr$elpd_diff)])<(-2)
-    
-    
+
+
     mod_comp$any_pareto_k[mdx]<-sum(mr$pareto_k_over_0.7)>1
     mod_comp$sum_div[mdx]<-sum(mr$mean_div)>0
-    mod_comp$meanrhat[mdx]<-mean(mr$meanrhat)>1.01
+    all_rhats<-c(gu[[idx]][[3]][[2]]$rhat,gu[[idx]][[4]][[2]]$rhat,
+                 gu[[idx]][[3]][[1]]$rhat,gu[[idx]][[4]][[1]]$rhat)
+    mod_comp$any_bad_rhat[mdx]<-any(all_rhats>1.05,na.rm=TRUE)
   }
 }
 
 
-mod_comp<-mod_comp %>% filter(sum_div==0,!is.na(generative_model))
+mod_comp<-mod_comp %>% filter(sum_div==0,!any_bad_rhat,!is.na(generative_model))
 test<-tibble(n=rep(NaN,4),n_sig=rep(NaN,4))
 for(gen in 1:2){
   for(win in 1:2){
@@ -109,6 +113,42 @@ test %>%
   
 ggsave(here::here("figures",'Figure3A.png'),units = 'cm',width = 7,height = 6.5)
 
+```
+
+```{r}
+classify_model_fit <- function(data_list, idx, model_name, model_slot){
+  if(!is.list(data_list[[idx]]))
+    return('initialization failure')
+  mr <- data_list[idx][[1]][[2]] %>% filter(variable=='gm[1]', models==model_name)
+  sum_div_flag      <- mr$mean_div > 0
+  all_rhats         <- c(data_list[[idx]][[model_slot]][[2]]$rhat,
+                         data_list[[idx]][[model_slot]][[1]]$rhat)
+  any_bad_rhat_flag <- any(all_rhats > 1.05, na.rm=TRUE)
+  case_when(
+    sum_div_flag & any_bad_rhat_flag   ~ 'divergences + poor rhat',
+    sum_div_flag                       ~ 'divergences',
+    any_bad_rhat_flag                  ~ 'poor rhat',
+    TRUE                               ~ 'survived'
+  )
+}
+
+model_info <- list(Gaussian=3, Gumbel=4)
+
+exclusion_summary <- map_dfr(names(model_info), function(model_name){
+  slot <- model_info[[model_name]]
+  bind_rows(
+    map_dfr(1:100, ~tibble(generative_dataset='Gaussian', fitted_model=model_name,
+                           exclusion=classify_model_fit(ga, .x, model_name, slot))),
+    map_dfr(1:100, ~tibble(generative_dataset='Gumbel',   fitted_model=model_name,
+                           exclusion=classify_model_fit(gu, .x, model_name, slot)))
+  )
+}) %>%
+  count(generative_dataset, fitted_model, exclusion) %>%
+  pivot_wider(names_from=exclusion, values_from=n, values_fill=0) %>%
+  relocate(generative_dataset, fitted_model,
+           any_of(c('initialization failure','divergences','divergences + poor rhat','poor rhat','survived')))
+
+print(exclusion_summary)
 ```
 
 ```{r}
@@ -415,4 +455,45 @@ ggsave(
   height = 8
 )
 
+```
+
+```{r}
+generative_gaussian <- read_csv(here::here("simulated_data","model_parameter_recovery","R_gaussian.csv"), show_col_types = FALSE) %>%
+  distinct(idx, mu_alpha, mu_beta, mu_lambda, tau_alpha, tau_beta, tau_lambda) %>%
+  mutate(generative_model = "Gaussian")
+
+generative_gumbel <- read_csv(here::here("simulated_data","model_parameter_recovery","R_gumbel.csv"), show_col_types = FALSE) %>%
+  distinct(idx, mu_alpha, mu_beta, mu_lambda, tau_alpha, tau_beta, tau_lambda) %>%
+  mutate(generative_model = "Gumbel")
+
+is_retained <- function(data_list, idx, model_name, model_slot){
+  if(!is.list(data_list[[idx]])) return(FALSE)
+  md <- data_list[idx][[1]][[2]] %>% filter(variable == 'gm[1]', models == model_name)
+  md$mean_div == 0 & !any(data_list[[idx]][[model_slot]][[2]]$rhat > 1.05, na.rm = TRUE)
+}
+
+generative_gaussian$retained <- map_lgl(generative_gaussian$idx, ~is_retained(ga, .x, 'Gaussian', 3))
+generative_gumbel$retained   <- map_lgl(generative_gumbel$idx,   ~is_retained(gu, .x, 'Gumbel', 4))
+
+generative_values <- bind_rows(generative_gaussian, generative_gumbel) %>%
+  mutate(status = if_else(retained, 'retained', 'excluded')) %>%
+  pivot_longer(cols = c(mu_alpha, mu_beta, mu_lambda, tau_alpha, tau_beta, tau_lambda),
+               names_to = 'variable', values_to = 'generative_value') %>%
+  mutate(variable = factor(variable, levels = c('mu_alpha','mu_beta','mu_lambda',
+                                                  'tau_alpha','tau_beta','tau_lambda')))
+
+generative_values %>%
+  ggplot(aes(x = status, y = generative_value, color = generative_model)) +
+  geom_jitter(width = 0.15, alpha = 0.6, size = 1.5) +
+  stat_summary(fun = median, geom = "crossbar", width = 0.4, color = 'black', fatten = 1) +
+  facet_wrap(~ variable, scales = 'free_y', nrow = 2) +
+  scale_color_manual(values = c(Gaussian = '#0072B2', Gumbel = '#E69F00')) +
+  theme_minimal() +
+  theme(legend.position = 'top') +
+  xlab(NULL) +
+  ylab('Generative (ground truth) value') +
+  labs(color = 'Generative model') +
+  ggtitle('Generative parameter values by dataset exclusion status')
+
+ggsave(here::here("figures","FigureGenerativeByExclusion.png"), units = 'cm', width = 20, height = 12)
 ```
