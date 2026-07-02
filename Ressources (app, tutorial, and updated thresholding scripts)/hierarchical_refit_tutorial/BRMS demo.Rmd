@@ -150,11 +150,11 @@ Next we need to specify the prior. Here we provide two options: the same weakly 
 
 ```{r}
 empirically_informed_priors_HRDT = c(
-  set_prior("normal(-8.67,0.52*10)", class="b", nlpar="alpha", coef = "Intercept"),
+  set_prior("normal(-8.67,11.23)", class="b", nlpar="alpha", coef = "Intercept"),
   set_prior("normal(0,11.23)", class="b", nlpar="alpha", coef = "conditiontreatment"),
-  set_prior("normal(-2.3,0.02*10)", class="b", nlpar="beta", coef = "Intercept"),
+  set_prior("normal(-2.3,0.34)", class="b", nlpar="beta", coef = "Intercept"),
   set_prior("normal(0,0.34)", class="b", nlpar="beta", coef = "conditiontreatment"),
-  set_prior("normal(-4.32,0.29)", class="b", nlpar="lambda"),
+  set_prior("normal(-4.32,1.96)", class="b", nlpar="lambda"),
 
   set_prior("normal(11.23,0.37*10)", class="sd", nlpar="alpha", group = "subj", lb = 0),
   set_prior("normal(0.34,0.02*10)", class="sd", nlpar="beta", group = "subj", lb = 0),
@@ -248,7 +248,7 @@ df %>% group_by(chain) %>% summarize(number_divergent = sum(divergent__),
 
 ```
 
-Here we want to see that the number of divergences for each chain is 0 that the low_energy is FALSE for all chains and the max_treedepth is below what we set when running the model. 
+Here we want to see that the number of divergences for each chain is 0 that the low_energy is FALSE for all chains and the max_treedepth is below what we set when running the model (i.e. 10). 
 
 
 ## Model interpretation
@@ -288,7 +288,7 @@ If we use the conventional 5% threshold, these results indicate a significant ef
 We could write something like this to report these results in a paper:
 ```{r}
 sprintf(
-  "Treatment led to a significant increase of the threshold (mean difference [95%% CI]: %0.2f [%0.2f ; %0.2f] ΔBPM, pseudo p-value:  %0.3f), corresponding to a reduced tendency to underestimate one's heart rate (mean threshold for control: %0.2f [%0.2f ; %0.2f]; mean threshold for treatment: %0.2f [%0.2f ; %0.2f]). Conversely, the slope appeared unaffected by treatment (mean log(slope) difference: %0.2f [%0.2f ; %0.2f], pseudo p-value:  %0.3f), indicating similar precision of judgements made under treatment or control (mean slope for control: %0.2f [%0.2f ; %0.2f]; mean slope for treatment: %0.2f [%0.2f ; %0.2f]).",
+  "Treatment led to a significant increase of the threshold (mean difference [95%% CI]: %0.2f [%0.2f ; %0.2f] ΔBPM, pseudo p-value:  %0.3f), corresponding to a reduced tendency to underestimate one's heart rate (mean threshold for control: %0.2f [%0.2f ; %0.2f]; mean threshold for treatment: %0.2f [%0.2f ; %0.2f]). Conversely, the slope appeared unaffected by treatment (mean log(slope) difference: %0.2f [%0.2f ; %0.2f], pseudo p-value:  %0.3f), suggesting similar precision of judgements made under treatment or control (mean slope for control: %0.2f [%0.2f ; %0.2f]; mean slope for treatment: %0.2f [%0.2f ; %0.2f]).",
   summary_stats_HRDT$m[2],
   summary_stats_HRDT$LB[2],
   summary_stats_HRDT$UB[2],
@@ -637,11 +637,11 @@ Next we need to specify the prior. Here we provide two options: a weakly informa
 
 ```{r}
 empirically_informed_priors_RRST = c(
-  set_prior("normal(2.57,0.00823*10)", class="b", nlpar="alpha", coef = "Intercept"),
+  set_prior("normal(2.57,0.105)", class="b", nlpar="alpha", coef = "Intercept"),
   set_prior("normal(0,0.105)", class="b", nlpar="alpha", coef = "conditiontreatment"),
-  set_prior("normal(2.05,0.08*10)", class="b", nlpar="beta", coef = "Intercept"),
+  set_prior("normal(2.05,0.85)", class="b", nlpar="beta", coef = "Intercept"),
   set_prior("normal(0,0.85)", class="b", nlpar="beta", coef = "conditiontreatment"),
-  set_prior("normal(-4.51,0.59)", class="b", nlpar="lambda"),
+  set_prior("normal(-4.51,2.53)", class="b", nlpar="lambda"),
 
   set_prior("normal(0.105,0.00746*10)", class="sd", nlpar="alpha", group = "subj", lb = 0),
   set_prior("normal(0.85,0.07*10)", class="sd", nlpar="beta", group = "subj", lb = 0),
